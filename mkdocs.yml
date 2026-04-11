@@ -1,0 +1,151 @@
+site_name: Sagan XAI
+site_url: https://sagan-docs.vercel.app
+site_description: >-
+  Explainable probabilistic ensemble for mean-reversion trading —
+  Physics-Informed Neural Networks · Temporal Fusion Transformer · XAI-RL
+site_author: Sagan Labs
+
+repo_name: sagan-labs/sagan
+repo_url: https://github.com/sagan-labs/sagan
+edit_uri: edit/main/docs/
+
+# ---------------------------------------------------------------------------
+# Theme
+# ---------------------------------------------------------------------------
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/chart-line
+  favicon: assets/favicon.png
+
+# ---------------------------------------------------------------------------
+# Plugins
+# ---------------------------------------------------------------------------
+plugins:
+  - search:
+      lang: en
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: google
+            docstring_section_style: spacy
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature_annotations: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            separate_signature: true
+            merge_init_into_class: true
+
+# ---------------------------------------------------------------------------
+# Navigation
+# ---------------------------------------------------------------------------
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Tutorials:
+      - Single Stock: tutorials/single_stock.md
+      - Parallel Training: tutorials/parallel_training.md
+      - Custom Configuration: tutorials/custom_config.md
+  - Architecture: architecture.md
+  - API Reference:
+      - Overview: api/index.md
+      - Ensemble: api/ensemble.md
+      - Predict: api/predict.md
+      - Data: api/data.md
+      - Registry: api/registry.md
+      - Config: api/config.md
+      - CLI: api/cli.md
+      - Exceptions: api/exceptions.md
+      - Utilities: api/utils.md
+      - Logging: api/logging.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md
+
+# ---------------------------------------------------------------------------
+# Markdown extensions
+# ---------------------------------------------------------------------------
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sagan-labs/sagan
+      name: GitHub
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/sagan/
+      name: PyPI
+  version:
+    provider: mike
+
+copyright: Copyright &copy; 2024 Sagan Labs · MIT License
