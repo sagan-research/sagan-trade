@@ -60,7 +60,7 @@ def main():
             "metrics": "Execute the institutional-grade novelty battery benchmark (DM Test, JSD, etc.).",
         }
         for cmd, desc in funcs.items():
-            print(f"👉 {cmd:10} | {desc}")
+            print(f"- {cmd:10} | {desc}")
         print("="*60 + "\n")
         return
 
