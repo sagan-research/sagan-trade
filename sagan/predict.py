@@ -44,6 +44,7 @@ class PredictionResult(TypedDict):
     signal: str
     confidence: float
     probabilities: dict[str, float]
+    portfolio_weights: dict[str, float]
     regime_uncertainty: float
     override: bool
     xai_justification: dict[str, Any]
@@ -111,30 +112,53 @@ def predict(
     scaled = scaler.transform(last_window.reshape(-1, n_stocks))
     X_input = scaled.reshape(1, window, n_stocks)
 
-    logit_buy = float(model_buy.predict(X_input, verbose=0)[0][0])
-    logit_sell = float(model_sell.predict(X_input, verbose=0)[0][0])
-    logit_hold = float(model_hold.predict(X_input, verbose=0)[0][0])
+    preds_buy = model_buy.predict(X_input, verbose=0)
+    preds_sell = model_sell.predict(X_input, verbose=0)
+    preds_hold = model_hold.predict(X_input, verbose=0)
+
+    # Logits and Softmax
+    logit_buy = float(preds_buy["logit"][0][0])
+    logit_sell = float(preds_sell["logit"][0][0])
+    logit_hold = float(preds_hold["logit"][0][0])
 
     logits = np.array([logit_buy, logit_sell, logit_hold])
     probs = tf.nn.softmax(logits).numpy()
     max_prob = float(np.max(probs))
     signal_map = {0: "LONG", 1: "SHORT", 2: "NEUTRAL"}
     signal_idx = int(np.argmax(probs))
+    signal = signal_map[signal_idx]
     override = max_prob < config.xai_confidence_threshold
 
+    # Portfolio Weights from Selection Network
+    # We use the selection weights from the winning head
+    winning_preds = [preds_buy, preds_sell, preds_hold][signal_idx]
+    vsn_weights = winning_preds["selection_weights"][0].tolist()
+
+    # Direction: LONG (+1), SHORT (-1), NEUTRAL (0)
+    direction = 1.0 if signal == "LONG" else (-1.0 if signal == "SHORT" else 0.0)
+    
+    # Portfolio weight = vsn_weight * confidence * direction
+    # This means high-confidence signals lead to higher portfolio exposure
+    port_weights = {
+        tickers[i]: float(vsn_weights[i] * max_prob * direction)
+        for i in range(len(tickers))
+    }
+
     return PredictionResult(
-        signal=signal_map[signal_idx],
+        signal=signal,
         confidence=max_prob,
         probabilities={
             "LONG": float(probs[0]),
             "SHORT": float(probs[1]),
             "NEUTRAL": float(probs[2]),
         },
+        portfolio_weights=port_weights,
         regime_uncertainty=1.0 - max_prob,
         override=bool(override),
         xai_justification={
             "reason": "Low confidence — regime uncertain" if override else "Model confident",
             "confidence_threshold": config.xai_confidence_threshold,
+            "selection_weights": {tickers[i]: float(vsn_weights[i]) for i in range(len(tickers))}
         },
         model_id=model_id,
         tickers=tickers,

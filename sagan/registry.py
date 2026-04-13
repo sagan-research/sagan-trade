@@ -30,6 +30,7 @@ import tensorflow as tf
 
 from sagan.config import config
 from sagan.exceptions import ModelNotFoundError, RegistryCorruptedError
+from sagan.models.tft import VariableSelectionNetwork, TemporalFusionBlock
 
 __all__ = [
     "save_model",
@@ -135,9 +136,26 @@ def load_ensemble(model_id: str):
     if not model_dir.exists():
         raise ModelNotFoundError(model_id, str(config.models_dir))
 
-    model_buy = tf.keras.models.load_model(str(model_dir / "model_buy.h5"), compile=False)
-    model_sell = tf.keras.models.load_model(str(model_dir / "model_sell.h5"), compile=False)
-    model_hold = tf.keras.models.load_model(str(model_dir / "model_hold.h5"), compile=False)
+    custom_objects = {
+        "VariableSelectionNetwork": VariableSelectionNetwork,
+        "TemporalFusionBlock": TemporalFusionBlock,
+    }
+
+    model_buy = tf.keras.models.load_model(
+        str(model_dir / "model_buy.h5"), 
+        custom_objects=custom_objects, 
+        compile=False
+    )
+    model_sell = tf.keras.models.load_model(
+        str(model_dir / "model_sell.h5"), 
+        custom_objects=custom_objects, 
+        compile=False
+    )
+    model_hold = tf.keras.models.load_model(
+        str(model_dir / "model_hold.h5"), 
+        custom_objects=custom_objects, 
+        compile=False
+    )
 
     with open(model_dir / "scaler.pkl", "rb") as f:
         scaler = pickle.load(f)

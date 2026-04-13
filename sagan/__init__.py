@@ -30,9 +30,9 @@ try:
     try:
         __version__ = version("sagan")
     except PackageNotFoundError:
-        __version__ = "0.1.0"  # fallback for editable/dev installs
+        __version__ = "0.1.1"  # fallback for editable/dev installs
 except ImportError:
-    __version__ = "0.1.0"
+    __version__ = "0.1.1"
 
 from sagan.config import config, SaganConfig
 from sagan.ensemble import ExplainableEnsemble, train

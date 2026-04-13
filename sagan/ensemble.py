@@ -168,13 +168,17 @@ class ExplainableEnsemble:
         def loss_fn(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
             return pinn_loss(y_true, y_pred, lambda_pinn=lambda_pinn)
 
-        model.compile(optimizer="adam", loss=loss_fn, metrics=["accuracy"])
+        model.compile(
+            optimizer="adam",
+            loss={"logit": loss_fn, "selection_weights": None},
+            metrics={"logit": "accuracy"}
+        )
         early = EarlyStopping(patience=5, restore_best_weights=True)
         model.fit(
-            X_train, y_train_bin,
+            X_train, {"logit": y_train_bin},
             epochs=self.epochs,
             batch_size=32,
-            validation_data=(X_val, y_val_bin),
+            validation_data=(X_val, {"logit": y_val_bin}),
             callbacks=[early],
             verbose=1 if self.verbose else 0,
         )
@@ -226,9 +230,14 @@ class ExplainableEnsemble:
         self.model_hold = self._train_action_model(X_train, y_train[:, 2], X_val, y_val[:, 2], "hold")
 
         # Validation metrics
-        logits_buy = self.model_buy.predict(X_val, verbose=0).flatten()
-        logits_sell = self.model_sell.predict(X_val, verbose=0).flatten()
-        logits_hold = self.model_hold.predict(X_val, verbose=0).flatten()
+        preds_buy = self.model_buy.predict(X_val, verbose=0)
+        preds_sell = self.model_sell.predict(X_val, verbose=0)
+        preds_hold = self.model_hold.predict(X_val, verbose=0)
+
+        logits_buy = preds_buy["logit"].flatten()
+        logits_sell = preds_sell["logit"].flatten()
+        logits_hold = preds_hold["logit"].flatten()
+        
         logits = np.stack([logits_buy, logits_sell, logits_hold], axis=1)
         probs = tf.nn.softmax(logits, axis=-1).numpy()
         final_action = np.argmax(probs, axis=1)

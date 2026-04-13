@@ -99,6 +99,7 @@ def fetch_prices(
 
     prices = pd.DataFrame()
     for t in tickers:
+        logger.info("Extracting data for '%s'...", t)
         # Multi-ticker returns a MultiIndex; single-ticker returns flat columns.
         try:
             if len(tickers) == 1:
