@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 # Project metadata (PEP 621)
 # ---------------------------------------------------------------------------
 [project]
-name = "sagan"
+name = "sagan-xai"
 version = "0.1.1"
 description = "Explainable probabilistic ensemble for mean-reversion trading using PINN + TFT + XAI-RL"
 readme = "README.md"
@@ -79,7 +79,7 @@ Documentation  = "https://sagan-docs.vercel.app"
 Source         = "https://github.com/That-Tech-Geek/sagan"
 "Bug Tracker"  = "https://github.com/That-Tech-Geek/sagan/issues"
 Changelog      = "https://sagan-docs.vercel.app/changelog"
-PyPI           = "https://pypi.org/project/sagan/"
+PyPI           = "https://pypi.org/project/sagan-xai/"
 
 # ---------------------------------------------------------------------------
 # Setuptools
