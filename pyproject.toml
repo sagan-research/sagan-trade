@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # ---------------------------------------------------------------------------
 [project]
 name = "sagan-xai"
-version = "0.1.1"
+version = "0.1.2"
 description = "Explainable probabilistic ensemble for mean-reversion trading using PINN + TFT + XAI-RL"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -39,6 +39,8 @@ dependencies = [
     "numpy>=1.23",
     "yfinance>=0.2",
     "scikit-learn>=1.1",
+    "streamlit>=1.25",
+    "plotly>=5.15",
 ]
 
 [project.optional-dependencies]

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="sagan-xai",
-    version="0.1.0",
+    version="0.1.2",
     author="Sagan Labs",
     author_email="hello@sagan.io",
     description="Explainable probabilistic ensemble for mean reversion trading",
@@ -20,6 +20,8 @@ setup(
         "numpy>=1.21",
         "yfinance>=0.2",
         "scikit-learn>=1.0",
+        "streamlit>=1.25",
+        "plotly>=5.15",
     ],
     extras_require={
         "dev": [

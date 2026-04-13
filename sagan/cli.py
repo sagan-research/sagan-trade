@@ -2,11 +2,16 @@
 
 import argparse
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 from sagan.ensemble import train
 from sagan.parallel import train_parallel_from_fetch
 from sagan.predict import predict
 from sagan.registry import list_models
+from sagan.metrics import run_novelty_battery
 
 
 def main():
@@ -26,22 +31,60 @@ def main():
                         help="Worker processes for parallel training (default: 12)")
     parser.add_argument("--list", action="store_true",
                         help="List all trained models")
+    parser.add_argument("--metrics", action="store_true",
+                        help="Run the novelty battery benchmark")
     # Hyper-parameter overrides
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--window", type=int, default=None)
     parser.add_argument("--horizon", type=int, default=None)
     parser.add_argument("--years", type=int, default=5)
 
-    args = parser.parse_args()
+    parser.add_argument("command", nargs="?", choices=["train", "predict", "list", "open", "metrics"],
+                        help="Command to run (optional if using flags)")
+    
+    args, unknown = parser.parse_known_args()
 
-    if args.list:
+    if args.command == "open" or (not args.command and len(sys.argv) > 1 and sys.argv[1] == "open"):
+        # Launch Streamlit dashboard
+        app_path = Path(__file__).parent / "app.py"
+        if not app_path.exists():
+            print(f"❌ Error: Dashboard file not found at {app_path}")
+            return
+        
+        print(f"🚀 Starting Sagan Quant Studio dashboard...")
+        try:
+            # We use sys.executable to ensure we use the same environment
+            result = subprocess.run([
+                sys.executable, "-m", "streamlit", "run", str(app_path)
+            ], check=False)
+        except KeyboardInterrupt:
+            print("\n👋 Dashboard stopped.")
+        return
+
+    if args.command == "metrics" or args.metrics:
+        # Run novelty battery
+        run_novelty_battery()
+        return
+
+    # Fallback to old flag-based parsing if no command positional is used
+    if not args.command:
+        # Re-parse with flags if no positional command was recognized
+        args = parser.parse_args()
+
+    if args.list or args.command == "list":
         df = list_models()
         if df.empty:
             print("No models trained yet.")
         else:
             print(df.to_string(index=False))
 
-    elif args.train:
+    elif args.train or args.command == "train":
+        # If positional 'train' is used, the tickers might be in unknown or we need more args
+        tickers = args.train if args.train else unknown
+        if not tickers:
+            print("❌ Error: No tickers provided for training.")
+            return
+            
         kwargs = {}
         if args.epochs:
             kwargs["epochs"] = args.epochs
@@ -53,14 +96,14 @@ def main():
 
         if args.parallel:
             results = train_parallel_from_fetch(
-                args.train, num_processes=args.num_processes, **kwargs
+                tickers, num_processes=args.num_processes, **kwargs
             )
             print(json.dumps(results, indent=2))
         else:
-            mid = train(args.train, **kwargs)
+            mid = train(tickers, **kwargs)
             print(f"✅ Model saved: {mid}")
 
-    elif args.predict:
+    elif args.predict or args.command == "predict":
         result = predict(model_id=args.model_id)
         print(json.dumps(result, indent=2))
 
