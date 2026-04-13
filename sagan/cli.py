@@ -33,6 +33,10 @@ def main():
                         help="List all trained models")
     parser.add_argument("--metrics", action="store_true",
                         help="Run the novelty battery benchmark")
+    parser.add_argument("--dash", action="store_true",
+                        help="Alias for 'open': launch the Streamlit dashboard")
+    parser.add_argument("--func", action="store_true",
+                        help="List all available CLI functions with detailed descriptions")
     # Hyper-parameter overrides
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--window", type=int, default=None)
@@ -44,7 +48,23 @@ def main():
     
     args, unknown = parser.parse_known_args()
 
-    if args.command == "open" or (not args.command and len(sys.argv) > 1 and sys.argv[1] == "open"):
+    if args.func:
+        print("\n" + "="*60)
+        print("SAGAN CLI: DETAILED FUNCTION LIST")
+        print("="*60)
+        funcs = {
+            "train": "Train a new Sagan Ensemble using Physics-Informed Neural Networks. Requires tickers.",
+            "predict": "Generate real-time trade signals and XAI justifications using the latest model.",
+            "list": "List all trained models currently stored in the local registry.",
+            "open": "Launch the Sagan Quant Studio dashboard for live visual analysis. (Alias: --dash)",
+            "metrics": "Execute the institutional-grade novelty battery benchmark (DM Test, JSD, etc.).",
+        }
+        for cmd, desc in funcs.items():
+            print(f"👉 {cmd:10} | {desc}")
+        print("="*60 + "\n")
+        return
+
+    if args.command == "open" or args.dash or (not args.command and len(sys.argv) > 1 and sys.argv[1] == "open"):
         # Launch Streamlit dashboard
         app_path = Path(__file__).parent / "app.py"
         if not app_path.exists():

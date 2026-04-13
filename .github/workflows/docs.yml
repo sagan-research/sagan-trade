@@ -24,10 +24,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install docs dependencies
-        run: pip install -r docs/requirements.txt
+        run: pip install --break-system-packages -r docs/requirements.txt
 
       - name: Install sagan (for mkdocstrings autodoc)
-        run: pip install -e .
+        run: pip install --break-system-packages -e .
 
       - name: Build MkDocs site
         run: mkdocs build --strict

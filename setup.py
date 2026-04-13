@@ -5,9 +5,9 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="sagan-xai",
-    version="0.1.2",
+    version="0.1.3",
     author="Sagan Labs",
-    author_email="hello@sagan.io",
+    author_email="hello@sagan-docs.vercel.app",
     description="Explainable probabilistic ensemble for mean reversion trading",
     long_description=long_description,
     long_description_content_type="text/markdown",
