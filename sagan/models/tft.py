@@ -4,6 +4,7 @@ import tensorflow as tf
 from tensorflow.keras import layers, Model
 
 
+@tf.keras.utils.register_keras_serializable(package="sagan")
 class VariableSelectionNetwork(layers.Layer):
     """Soft feature gating over the stock dimension."""
 
@@ -23,7 +24,16 @@ class VariableSelectionNetwork(layers.Layer):
         gated = inputs * weights_expanded                      # (B, T, n_stocks)
         return gated, weights
 
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "num_features": self.num_features,
+            "units": self.units,
+        })
+        return config
 
+
+@tf.keras.utils.register_keras_serializable(package="sagan")
 class TemporalFusionBlock(layers.Layer):
     """Single multi-head self-attention + feed-forward block."""
 
@@ -36,6 +46,10 @@ class TemporalFusionBlock(layers.Layer):
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.head_dim = head_dim
+        self.num_heads = num_heads
+        self.ff_dim = ff_dim
+        self.dropout_rate = dropout
         self.attention = layers.MultiHeadAttention(
             num_heads=num_heads, key_dim=head_dim, dropout=dropout
         )
@@ -53,6 +67,16 @@ class TemporalFusionBlock(layers.Layer):
         ffn_out = self.ffn(x)
         x = self.layernorm2(x + self.dropout(ffn_out))
         return x
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "head_dim": self.head_dim,
+            "num_heads": self.num_heads,
+            "ff_dim": self.ff_dim,
+            "dropout": self.dropout_rate,
+        })
+        return config
 
 
 def build_tft_action_model(

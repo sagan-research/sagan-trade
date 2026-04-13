@@ -141,21 +141,22 @@ def load_ensemble(model_id: str):
         "TemporalFusionBlock": TemporalFusionBlock,
     }
 
-    model_buy = tf.keras.models.load_model(
-        str(model_dir / "model_buy.h5"), 
-        custom_objects=custom_objects, 
-        compile=False
-    )
-    model_sell = tf.keras.models.load_model(
-        str(model_dir / "model_sell.h5"), 
-        custom_objects=custom_objects, 
-        compile=False
-    )
-    model_hold = tf.keras.models.load_model(
-        str(model_dir / "model_hold.h5"), 
-        custom_objects=custom_objects, 
-        compile=False
-    )
+    with tf.keras.utils.custom_object_scope(custom_objects):
+        model_buy = tf.keras.models.load_model(
+            str(model_dir / "model_buy.h5"), 
+            custom_objects=custom_objects, 
+            compile=False
+        )
+        model_sell = tf.keras.models.load_model(
+            str(model_dir / "model_sell.h5"), 
+            custom_objects=custom_objects, 
+            compile=False
+        )
+        model_hold = tf.keras.models.load_model(
+            str(model_dir / "model_hold.h5"), 
+            custom_objects=custom_objects, 
+            compile=False
+        )
 
     with open(model_dir / "scaler.pkl", "rb") as f:
         scaler = pickle.load(f)

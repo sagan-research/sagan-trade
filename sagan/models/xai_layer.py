@@ -3,6 +3,7 @@
 import tensorflow as tf
 
 
+@tf.keras.utils.register_keras_serializable(package="sagan")
 class XAIRLLayer(tf.keras.layers.Layer):
     """
     Computes regime uncertainty from prediction logits.

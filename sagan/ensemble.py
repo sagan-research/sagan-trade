@@ -145,6 +145,8 @@ class ExplainableEnsemble:
         X_val: np.ndarray,
         y_val_bin: np.ndarray,
         name: str,
+        progress_callback: Any = None,
+        progress_increment: float = 0.0,
     ) -> tf.keras.Model:
         """Build and train one action head.
 
@@ -154,6 +156,8 @@ class ExplainableEnsemble:
             X_val: Validation inputs.
             y_val_bin: Validation labels.
             name: Human-readable head name for logging (``"buy"`` / ``"sell"`` / ``"hold"``).
+            progress_callback: Optional callable for UI progress updates.
+            progress_increment: Value to add to the progress bar after completion.
 
         Returns:
             The trained Keras model.
@@ -182,13 +186,15 @@ class ExplainableEnsemble:
             callbacks=[early],
             verbose=1 if self.verbose else 0,
         )
+        if progress_callback:
+            progress_callback(progress_increment)
         return model
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def train(self) -> dict[str, Any]:
+    def train(self, progress_callback: Any = None) -> dict[str, Any]:
         """Fetch data, train all three action heads, and compute metrics.
 
         This method:
@@ -210,6 +216,8 @@ class ExplainableEnsemble:
             InsufficientDataError: If there is not enough data for training.
         """
         self._fetch_and_prepare()
+        if progress_callback:
+            progress_callback(0.1)
         assert self.X is not None and self.y_probs is not None
 
         split = int(0.8 * len(self.X))
@@ -225,9 +233,18 @@ class ExplainableEnsemble:
         ).reshape(X_val.shape)
         self.X_train, self.X_val = X_train, X_val
 
-        self.model_buy = self._train_action_model(X_train, y_train[:, 0], X_val, y_val[:, 0], "buy")
-        self.model_sell = self._train_action_model(X_train, y_train[:, 1], X_val, y_val[:, 1], "sell")
-        self.model_hold = self._train_action_model(X_train, y_train[:, 2], X_val, y_val[:, 2], "hold")
+        self.model_buy = self._train_action_model(
+            X_train, y_train[:, 0], X_val, y_val[:, 0], "buy", 
+            progress_callback, 0.3
+        )
+        self.model_sell = self._train_action_model(
+            X_train, y_train[:, 1], X_val, y_val[:, 1], "sell", 
+            progress_callback, 0.3
+        )
+        self.model_hold = self._train_action_model(
+            X_train, y_train[:, 2], X_val, y_val[:, 2], "hold", 
+            progress_callback, 0.3
+        )
 
         # Validation metrics
         preds_buy = self.model_buy.predict(X_val, verbose=0)
@@ -299,7 +316,7 @@ class ExplainableEnsemble:
 # Convenience function
 # ---------------------------------------------------------------------------
 
-def train(tickers: list[str], **kwargs: Any) -> str:
+def train(tickers: list[str], progress_callback: Any = None, **kwargs: Any) -> str:
     """Train a new ensemble and save it to the registry in one call.
 
     This is the primary entry-point for most users. It creates an
@@ -308,6 +325,7 @@ def train(tickers: list[str], **kwargs: Any) -> str:
 
     Args:
         tickers: List of Yahoo Finance ticker symbols.
+        progress_callback: Optional callable for UI progress updates.
         **kwargs: Any keyword argument accepted by :class:`ExplainableEnsemble`
             (e.g. ``window``, ``epochs``, ``head_dim``).
 
@@ -321,5 +339,5 @@ def train(tickers: list[str], **kwargs: Any) -> str:
         sagan_20240411_120000_abc123
     """
     ensemble = ExplainableEnsemble(tickers, **kwargs)
-    ensemble.train()
+    ensemble.train(progress_callback=progress_callback)
     return ensemble.save()

@@ -68,20 +68,25 @@ with st.sidebar:
 # --- UTILS ---
 def plot_portfolio_weights(weights):
     labels = list(weights.keys())
-    values = [abs(v) for v in weights.values()]
+    values = [float(abs(v)) for v in weights.values()]
+    # Diverging colors: Green for BUY/Long, Red for SELL/Short
+    # Note: result['portfolio_weights'] values are signed confidences
     colors = ['#238636' if v >= 0 else '#da3633' for v in weights.values()]
     
-    fig = go.Figure(data=[go.Bar(
-        x=labels, y=values,
-        marker_color=colors,
-        text=[f"{v:.1%}" for v in weights.values()],
-        textposition='auto',
+    fig = go.Figure(data=[go.Pie(
+        labels=labels, 
+        values=values,
+        hole=.4,
+        marker_colors=colors,
+        textinfo='label+percent',
+        insidetextorientation='radial'
     )])
     fig.update_layout(
         title="Portfolio Allocation (Confidence-Weighted)",
         template="plotly_dark",
-        height=300,
+        height=350,
         margin=dict(l=20, r=20, t=40, b=20),
+        showlegend=False
     )
     return fig
 
@@ -165,10 +170,19 @@ elif page == "Model Factory":
             # Start Training
             with st.status("Training ensemble heads...", expanded=True) as status:
                 st.write("Initializing Training Sequence...")
-                model_id = sagan.train(ticker_list, epochs=epochs, window=window)
+                
+                # Progress state
+                progress_val = 0.1
+                def update_progress(inc):
+                    nonlocal progress_val
+                    progress_val = min(progress_val + inc, 1.0)
+                    progress_bar.progress(progress_val)
+                
+                model_id = sagan.train(ticker_list, epochs=epochs, window=window, progress_callback=update_progress)
                 status.update(label="Training complete!", state="complete", expanded=False)
             
             st.success(f"Ensemble {model_id} registered successfully!")
+            progress_bar.progress(1.0)
             st.balloons()
             
             # Refresh models
