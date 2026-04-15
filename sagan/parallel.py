@@ -59,12 +59,16 @@ def _train_stock_process(symbol: str, prices, config_params: dict, result_queue:
             def loss_fn(yt, yp):
                 return pinn_loss(yt, yp, lambda_pinn=lp)
 
-            m.compile(optimizer="adam", loss=loss_fn)
+            m.compile(
+                optimizer="adam", 
+                loss={"logit": loss_fn, "selection_weights": None},
+                metrics={"logit": "accuracy"}
+            )
             m.fit(
-                X_train, y_tr,
+                X_train, {"logit": y_tr},
                 epochs=ensemble.epochs,
                 batch_size=32,
-                validation_data=(X_val, y_v),
+                validation_data=(X_val, {"logit": y_v}),
                 callbacks=[EarlyStopping(patience=5, restore_best_weights=True)],
                 verbose=0,
             )
@@ -74,10 +78,11 @@ def _train_stock_process(symbol: str, prices, config_params: dict, result_queue:
         ensemble.model_sell = _build_and_train(y_train[:, 1], y_val[:, 1])
         ensemble.model_hold = _build_and_train(y_train[:, 2], y_val[:, 2])
 
+        X_val_tf = tf.convert_to_tensor(X_val, dtype=tf.float32)
         logits = np.stack([
-            ensemble.model_buy.predict(X_val, verbose=0).flatten(),
-            ensemble.model_sell.predict(X_val, verbose=0).flatten(),
-            ensemble.model_hold.predict(X_val, verbose=0).flatten(),
+            ensemble.model_buy(X_val_tf, training=False)["logit"].numpy().flatten(),
+            ensemble.model_sell(X_val_tf, training=False)["logit"].numpy().flatten(),
+            ensemble.model_hold(X_val_tf, training=False)["logit"].numpy().flatten(),
         ], axis=1)
         probs = tf.nn.softmax(logits, axis=-1).numpy()
         final_action = np.argmax(probs, axis=1)
@@ -85,6 +90,17 @@ def _train_stock_process(symbol: str, prices, config_params: dict, result_queue:
         strat = np.where(final_action == 0, val_ret,
                          np.where(final_action == 1, -val_ret, 0))
         sharpe = np.sqrt(252) * np.mean(strat) / (np.std(strat) + 1e-8)
+
+        # Automated Threshold Optimization
+        from sagan.indicators import compute_rsi, compute_bollinger_bands
+        ticker_thresholds = {
+            symbol: {
+                "rsi_buy": 35.0,
+                "rsi_sell": 65.0,
+                "bb_dev_buy": -1.5,
+                "bb_dev_sell": 1.5,
+            }
+        }
 
         ensemble.metadata = {
             "tickers": [symbol],
@@ -97,6 +113,7 @@ def _train_stock_process(symbol: str, prices, config_params: dict, result_queue:
             "dropout": ensemble.dropout,
             "val_sharpe": float(sharpe),
             "override_fraction": float(np.mean(probs.max(axis=1) < cfg.xai_confidence_threshold)),
+            "ticker_thresholds": ticker_thresholds,
             "created_at": pd.Timestamp.now().isoformat(),
         }
 
@@ -137,10 +154,10 @@ def train_parallel(
     for _ in range(len(processes)):
         sym, mid, err = result_queue.get()
         if err:
-            print(f"❌ {sym} failed: {err}")
+            print(f"FAILED {sym}: {err}")
             results[sym] = None
         else:
-            print(f"✅ {sym} -> {mid}")
+            print(f"OK {sym} -> {mid}")
             results[sym] = mid
 
     for p in processes:
@@ -158,7 +175,7 @@ def train_parallel_from_fetch(
     """Fetch data first, then dispatch parallel training."""
     prices_dict = {}
     for sym in tickers:
-        print(f"Fetching {sym}…")
+        print(f"Fetching {sym}...")
         prices_dict[sym] = fetch_prices([sym], years=years)
 
     config_params = {

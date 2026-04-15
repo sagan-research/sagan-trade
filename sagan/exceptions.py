@@ -95,3 +95,6 @@ class RegistryCorruptedError(SaganError):
         self.path = path
         self.detail = detail
         super().__init__(f"Registry at '{path}' is corrupted: {detail}")
+
+
+

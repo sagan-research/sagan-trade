@@ -17,6 +17,7 @@ ensemble. Each model is stored in its own subdirectory::
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -119,6 +120,7 @@ def save_model(
     return model_id
 
 
+@functools.lru_cache(maxsize=16)
 def load_ensemble(model_id: str):
     """Load a saved ensemble from disk.
 

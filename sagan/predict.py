@@ -20,6 +20,9 @@ from sagan.config import config
 from sagan.data import fetch_prices
 from sagan.exceptions import InsufficientDataError, ModelNotFoundError
 from sagan.registry import list_models, load_ensemble
+from sagan.indicators import compute_technical_snapshot
+from sagan.database import log_action
+from sagan.compliance.report import generate_compliance_report
 
 __all__ = ["predict", "batch_predict", "PredictionResult"]
 
@@ -57,6 +60,7 @@ def predict(
     model_id: str | None = None,
     tickers: list[str] | None = None,
     days_back: int = 20,
+    compliance: bool = False,
 ) -> PredictionResult:
     """Generate a trading signal from a trained ensemble.
 
@@ -88,7 +92,6 @@ def predict(
         >>> model_id = sagan.train(["AAPL", "MSFT"])
         >>> result = sagan.predict(model_id=model_id)
         >>> print(result["signal"], f"{result['confidence']:.1%}")
-        LONG 74.3%
     """
     if model_id is None:
         df = list_models()
@@ -110,11 +113,11 @@ def predict(
     n_stocks = returns.shape[1]
     last_window = returns.iloc[-window:].values
     scaled = scaler.transform(last_window.reshape(-1, n_stocks))
-    X_input = scaled.reshape(1, window, n_stocks)
+    X_input = tf.convert_to_tensor(scaled.reshape(1, window, n_stocks), dtype=tf.float32)
 
-    preds_buy = model_buy.predict(X_input, verbose=0)
-    preds_sell = model_sell.predict(X_input, verbose=0)
-    preds_hold = model_hold.predict(X_input, verbose=0)
+    preds_buy = model_buy(X_input, training=False)
+    preds_sell = model_sell(X_input, training=False)
+    preds_hold = model_hold(X_input, training=False)
 
     # Logits and Softmax
     logit_buy = float(preds_buy["logit"][0][0])
@@ -130,22 +133,54 @@ def predict(
     override = max_prob < config.xai_confidence_threshold
 
     # Portfolio Weights from Selection Network
-    # We use the selection weights from the winning head
     winning_preds = [preds_buy, preds_sell, preds_hold][signal_idx]
-    vsn_weights = winning_preds["selection_weights"][0].tolist()
+    vsn_weights = winning_preds["selection_weights"][0].numpy().tolist()
 
-    # Direction: LONG (+1), SHORT (-1), NEUTRAL (0)
     direction = 1.0 if signal == "LONG" else (-1.0 if signal == "SHORT" else 0.0)
-    
-    # Portfolio weight = vsn_weight * confidence * direction
-    # This means high-confidence signals lead to higher portfolio exposure
     port_weights = {
         tickers[i]: float(vsn_weights[i] * max_prob * direction)
         for i in range(len(tickers))
     }
 
-    return PredictionResult(
-        signal=signal,
+    # Technical Indicators and Thresholds
+    tech_snapshot = compute_technical_snapshot(prices)
+    ticker_thresholds = metadata.get("ticker_thresholds", {})
+    
+    # Simple Rule-based Signal Generation from Thresholds
+    # We aggregate across tickers; here we just look at the primary ticker or mean
+    rule_signals = []
+    for t in tickers:
+        t_meta = ticker_thresholds.get(t, {"rsi_buy": 35, "rsi_sell": 65})
+        t_tech = tech_snapshot.get(t, {})
+        
+        if t_tech.get("rsi", 50) < t_meta["rsi_buy"]:
+            rule_signals.append("LONG")
+        elif t_tech.get("rsi", 50) > t_meta["rsi_sell"]:
+            rule_signals.append("SHORT")
+        else:
+            rule_signals.append("NEUTRAL")
+            
+    from collections import Counter
+    rule_signal = Counter(rule_signals).most_common(1)[0][0]
+    
+    # Conflict Detection
+    conflict = (signal != rule_signal)
+    
+    # Gating Logic: Use VSN selection weights to weight the ML signal
+    # If the model is focused on a specific ticker, trust the ML more.
+    # Otherwise, if it's dispersed, the conflict matters more.
+    vsn_dispersion = np.std(vsn_weights)  
+    gating_reason = "ML Focused" if vsn_dispersion > 0.1 else "Diffused - Trusting Thresholds more"
+    
+    if conflict:
+        res_signal = "NEUTRAL (Conflict)" if not override else signal
+        just_reason = f"Conflict detected: ML={signal}, Rule={rule_signal}. Gating: {gating_reason}"
+    else:
+        res_signal = signal
+        just_reason = f"Signals align: {signal}. Gating: {gating_reason}"
+
+    res = PredictionResult(
+        signal=res_signal,
         confidence=max_prob,
         probabilities={
             "LONG": float(probs[0]),
@@ -156,14 +191,33 @@ def predict(
         regime_uncertainty=1.0 - max_prob,
         override=bool(override),
         xai_justification={
-            "reason": "Low confidence — regime uncertain" if override else "Model confident",
+            "reason": just_reason,
             "confidence_threshold": config.xai_confidence_threshold,
-            "selection_weights": {tickers[i]: float(vsn_weights[i]) for i in range(len(tickers))}
+            "selection_weights": {tickers[i]: float(vsn_weights[i]) for i in range(len(tickers))},
+            "technical_indicators": tech_snapshot,
+            "thresholds": ticker_thresholds,
+            "conflict": conflict
         },
         model_id=model_id,
         tickers=tickers,
         timestamp=datetime.now().isoformat(),
     )
+
+    # Log to local DB
+    log_action(
+        model_id=model_id,
+        tickers=tickers,
+        action=res_signal,
+        confidence=max_prob,
+        conflict=conflict,
+        justification=just_reason,
+        extra_meta={"tech": tech_snapshot, "probs": res["probabilities"]}
+    )
+
+    if compliance:
+        generate_compliance_report(res)
+
+    return res
 
 
 def batch_predict(

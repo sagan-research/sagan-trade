@@ -7,8 +7,8 @@ build-backend = "setuptools.build_meta"
 # ---------------------------------------------------------------------------
 [project]
 name = "sagan-xai"
-version = "0.1.5"
-description = "Explainable probabilistic ensemble for mean-reversion trading using PINN + TFT + XAI-RL"
+version = "0.2.0"
+description = "SEBI-Compliant Quantitative Trading Platform with automated thresholds and HITL logging."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -41,6 +41,10 @@ dependencies = [
     "scikit-learn>=1.1",
     "streamlit>=1.25",
     "plotly>=5.15",
+    "cryptography",
+    "typer",
+    "snaptrade-python",
+    "schedule",
 ]
 
 [project.optional-dependencies]
@@ -73,7 +77,7 @@ docs = [
 ]
 
 [project.scripts]
-sagan = "sagan.cli:main"
+sagan = "sagan.cli.commands:app"
 
 [project.urls]
 Homepage       = "https://sagan-docs.vercel.app"

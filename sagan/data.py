@@ -78,8 +78,7 @@ def fetch_prices(
         try:
             data = yf.download(
                 tickers,
-                start=start,
-                end=end,
+                period=f"{years}y",
                 group_by="ticker",
                 auto_adjust=True,
                 progress=False,
@@ -100,21 +99,25 @@ def fetch_prices(
     prices = pd.DataFrame()
     for t in tickers:
         logger.info("Extracting data for '%s'...", t)
-        # Multi-ticker returns a MultiIndex; single-ticker returns flat columns.
         try:
-            if len(tickers) == 1:
-                col = data.get("Close")
-                if col is not None:
-                    prices[t] = col
+            # 1. Try MultiIndex (t, 'Close')
+            if (t, "Close") in data.columns:
+                prices[t] = data[(t, "Close")]
+            # 2. Try simple 'Close' (if single ticker or flattened)
+            elif "Close" in data.columns and (len(tickers) == 1 or t not in data.columns):
+                prices[t] = data["Close"]
+            # 3. Try level 0 access
+            elif t in data.columns:
+                temp = data[t]
+                if isinstance(temp, pd.DataFrame) and "Close" in temp.columns:
+                    prices[t] = temp["Close"]
+                elif isinstance(temp, pd.Series) and temp.name == "Close":
+                    prices[t] = temp
+            # 4. Try suffix fallback
             else:
-                if (t, "Close") in data.columns:
-                    prices[t] = data[(t, "Close")]
-                elif t in data.columns:
-                    prices[t] = data[t]["Close"]
-                else:
-                    alt = t.replace(".NS", "")
-                    if (alt, "Close") in data.columns:
-                        prices[t] = data[(alt, "Close")]
+                alt = t.replace(".NS", "")
+                if (alt, "Close") in data.columns:
+                    prices[t] = data[(alt, "Close")]
         except Exception as exc:
             logger.warning("Could not extract prices for '%s': %s", t, exc)
 

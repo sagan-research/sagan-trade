@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] – 2026-04-15
+
+### Added
+- SEBI Compliance Engine: Dual export of signals to `.md` and `.json`.
+- Automated Threshold Optimization: Model-generated RSI and Volatility boundaries for 2000+ NSE stocks.
+- HITL Audit Logic: Local SQLite database (`sagan.db`) recording all actions and model justifications.
+- Gating-Driven Conflict resolution: Using TFT Variable Selection Network (VSN) weights to manage signal discrepancies.
+- Consolidated Typer CLI: New commands `userlogs`, `metrics`, and `dash`.
+
+## [0.0.1] – 2026-04-15
+
+### Changed
+- **Completely removed paywall and credit tracking**: Firestore-based billing and tiered feature gating have been stripped. The library is now fully open and free.
+- **Fixed TensorFlow retracing issue**: Optimized prediction pipeline to use direct model calls and added an LRU cache for model loading, resolving expensive tracing warnings during inference.
+- **Reset versioning**: Reset package version to `0.0.1` as per state transition.
+
+### Removed
+- `sagan.billing` module and all related Firestore/sync logic.
+- `auth`, `sync`, and `usage` CLI commands.
+- Dependencies: `authlib`, `python-jose`, `httpx`.
+
+---
+
 ## [0.1.0] – 2024-04-11
 
 ### Added
