@@ -172,11 +172,10 @@ elif page == "Model Factory":
                 st.write("Initializing Training Sequence...")
                 
                 # Progress state
-                progress_val = 0.1
+                progress_state = {"val": 0.1}
                 def update_progress(inc):
-                    nonlocal progress_val
-                    progress_val = min(progress_val + inc, 1.0)
-                    progress_bar.progress(progress_val)
+                    progress_state["val"] = min(progress_state["val"] + inc, 1.0)
+                    progress_bar.progress(progress_state["val"])
                 
                 model_id = sagan.train(ticker_list, epochs=epochs, window=window, progress_callback=update_progress)
                 status.update(label="Training complete!", state="complete", expanded=False)
