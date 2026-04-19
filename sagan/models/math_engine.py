@@ -10,7 +10,7 @@ logger = logging.getLogger("sagan.math")
 @numba.jit(nopython=True)
 def polynomial_kernel(t, coeffs):
     # coeffs is an array, we use Horner's method for speed in JIT
-    res = 0.0
+    res = np.zeros_like(t, dtype=np.float64)
     for c in coeffs:
         res = res * t + c
     return res
@@ -18,7 +18,7 @@ def polynomial_kernel(t, coeffs):
 @numba.jit(nopython=True)
 def fourier_kernel(t, params):
     # params: [a0, a1, b1, w1, a2, b2, w2, ...]
-    res = params[0]
+    res = np.full_like(t, params[0], dtype=np.float64)
     n_harmonics = (len(params) - 1) // 3
     for i in range(n_harmonics):
         a = params[1 + i*3]
