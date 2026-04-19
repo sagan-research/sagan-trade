@@ -7,17 +7,16 @@ from datetime import datetime
 import time
 import sagan
 from sagan.config import config
-from sagan.data import fetch_prices
 import traceback
 import logging
 
-# Set up logging to capture background errors
+# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Sagan Quant Studio",
+    page_title="Sagan Portfolio Engine",
     page_icon="🔮",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -26,227 +25,141 @@ st.set_page_config(
 # --- STYLING ---
 st.markdown("""
 <style>
-    .main {
-        background-color: #0e1117;
-    }
-    .stMetric {
-        background-color: #161b22;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #30363d;
-    }
-    .stPlotlyChart {
-        background-color: #161b22;
-        border-radius: 10px;
-        border: 1px solid #30363d;
-        padding: 10px;
-    }
-    h1, h2, h3 {
-        color: #58a6ff;
-    }
+    .main { background-color: #0e1117; }
+    .stMetric { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; }
+    .stPlotlyChart { background-color: #161b22; border-radius: 10px; border: 1px solid #30363d; padding: 10px; }
+    h1, h2, h3 { color: #58a6ff; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- SESSION STATE ---
-if 'trained_models' not in st.session_state:
-    try:
-        st.session_state.trained_models = sagan.list_models()
-    except:
-        st.session_state.trained_models = pd.DataFrame()
-
 # --- SIDEBAR ---
 with st.sidebar:
-    st.title("🛡️ Sagan XAI")
-    st.caption("Physics-Informed Mean Reversion")
+    st.title("🛡️ Sagan Trade")
+    st.caption("Symbolic Mathematical Engines")
     st.divider()
     
-    page = st.radio("Navigation", ["Portfolio Hub", "Model Factory", "Backtest Lab", "Settings"])
+    page = st.radio("Navigation", ["Symbolic Hub", "Symbolic Studio", "Portfolio Studio", "Simulation Lab", "Whitepaper"])
     
     st.divider()
-    st.info("CPU Mode: Optimized for local inference")
+    st.subheader("⚡ Power Hub")
+    perf_mode = st.radio("Performance Mode", ["Eco", "Balanced", "Turbo"], index=1)
+    
+    if perf_mode == "Eco": st.caption("🌱 10% RAM budget.")
+    elif perf_mode == "Balanced": st.caption("⚖️ 30% RAM budget.")
+    else: st.caption("🔥 50%+ RAM budget. High Throughput.")
 
-# --- UTILS ---
-def plot_portfolio_weights(weights):
-    labels = list(weights.keys())
-    values = [float(abs(v)) for v in weights.values()]
-    # Diverging colors: Green for BUY/Long, Red for SELL/Short
-    # Note: result['portfolio_weights'] values are signed confidences
-    colors = ['#238636' if v >= 0 else '#da3633' for v in weights.values()]
-    
-    fig = go.Figure(data=[go.Pie(
-        labels=labels, 
-        values=values,
-        hole=.4,
-        marker_colors=colors,
-        textinfo='label+percent',
-        insidetextorientation='radial'
-    )])
-    fig.update_layout(
-        title="Portfolio Allocation (Confidence-Weighted)",
-        template="plotly_dark",
-        height=350,
-        margin=dict(l=20, r=20, t=40, b=20),
-        showlegend=False
-    )
-    return fig
+# --- HELPERS ---
+def run_ticker_scan(ticker):
+    from sagan.signals import get_available_signals
+    return get_available_signals(ticker)
 
 # --- PAGES ---
 
-if page == "Portfolio Hub":
-    st.title("🔮 Portfolio Hub")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    # Selection
-    try:
-        models = sagan.list_models()
-    except Exception as e:
-        st.error(f"Failed to list models: {e}")
-        models = pd.DataFrame()
-
+if page == "Symbolic Hub":
+    st.title("🔮 Symbolic Hub")
+    models = sagan.list_models()
     if models.empty:
-        st.warning("No models found. Head to the 'Model Factory' to train your first ensemble.")
+        st.warning("No models found. Go to 'Symbolic Studio'.")
     else:
-        selected_model_id = st.selectbox("Active Ensemble", models['model_id'], index=len(models)-1)
-        
-        with st.spinner("Generating real-time signal..."):
-            try:
-                result = sagan.predict(model_id=selected_model_id)
-                
-                # Metrics
-                col1.metric("Signal", result['signal'], delta=f"{result['confidence']:.1%}", delta_color="normal")
-                col2.metric("Regime Uncertainty", f"{result['regime_uncertainty']:.1%}", delta="High" if result['override'] else "Low", delta_color="inverse")
-                col3.metric("Model ID", result['model_id'][:8] + "...")
-                
-                st.divider()
-                
-                c1, c2 = st.columns([2, 1])
-                
-                with c1:
-                    st.subheader("Asset Allocation")
-                    st.plotly_chart(plot_portfolio_weights(result['portfolio_weights']), use_container_width=True)
-                
-                with c2:
-                    st.subheader("XAI Justification")
-                    reason_color = "red" if result['override'] else "green"
-                    st.markdown(f"**Status:** :{reason_color}[{result['xai_justification']['reason']}]")
-                    st.markdown(f"**Threshold:** `{result['xai_justification']['confidence_threshold']}`")
-                    
-                    st.caption("Variable Selection Importance")
-                    importance = result['xai_justification']['selection_weights']
-                    imp_df = pd.DataFrame(importance.items(), columns=['Ticker', 'Weight']).sort_values('Weight', ascending=False)
-                    st.dataframe(imp_df, hide_index=True, use_container_width=True)
-
-            except Exception as e:
-                st.error(f"Prediction failed: {e}")
-                st.code(traceback.format_exc())
-                logger.error(f"Prediction error: {traceback.format_exc()}")
-
-elif page == "Model Factory":
-    st.title("🏗️ Model Factory")
-    st.write("Train a new Sagan Ensemble using Physics-Informed Neural Networks.")
-    
-    with st.expander("Configuration", expanded=True):
-        tickers = st.text_input("Tickers (comma separated)", "AAPL, MSFT, TSLA, NVDA")
-        ticker_list = [t.strip() for t in tickers.split(",")]
+        selected_id = st.selectbox("Active Model", models['model_id'])
+        res = sagan.predict(model_id=selected_id)
         
         c1, c2, c3 = st.columns(3)
-        window = c1.number_input("Lookback Window", 5, 60, 15)
-        epochs = c2.number_input("Epochs (CPU Optimized)", 1, 50, 10)
-        pinn_lambda = c3.slider("PINN Penalty (λ)", 0.0, 0.5, 0.01)
-
-    if st.button("Start Training Sequence", type="primary"):
-        status_box = st.empty()
-        progress_bar = st.progress(0)
+        c1.metric("Signal", res['signal'])
+        c2.metric("Mean R2", f"{np.mean(list(res['r2_stats'].values())):.2%}")
+        c3.metric("Model ID", res['model_id'][:8])
         
-        try:
-            status_box.info("Fetching market data...")
-            progress_bar.progress(10)
-            
-            # Update config
-            config.default_window = window
-            config.pinn_lambda = pinn_lambda
-            
-            # Start Training
-            with st.status("Training ensemble heads...", expanded=True) as status:
-                st.write("Initializing Training Sequence...")
-                
-                # Progress state
-                progress_state = {"val": 0.1}
-                def update_progress(inc):
-                    progress_state["val"] = min(progress_state["val"] + inc, 1.0)
-                    progress_bar.progress(progress_state["val"])
-                
-                model_id = sagan.train(ticker_list, epochs=epochs, window=window, progress_callback=update_progress)
-                status.update(label="Training complete!", state="complete", expanded=False)
-            
-            st.success(f"Ensemble {model_id} registered successfully!")
-            progress_bar.progress(1.0)
-            st.balloons()
-            
-            # Refresh models
-            st.session_state.trained_models = sagan.list_models()
-            
-        except Exception as e:
-            st.error(f"Training failed: {e}")
-            st.code(traceback.format_exc())
-            logger.error(f"Training error: {traceback.format_exc()}")
+        st.subheader("Discovered Formula")
+        st.code(res['formula'])
+        
+        st.subheader("Signal Components (R2 Stability)")
+        r2_df = pd.DataFrame(res['r2_stats'].items(), columns=['Signal', 'R2 Score'])
+        st.bar_chart(r2_df.set_index('Signal'))
 
-elif page == "Backtest Lab":
-    st.title("🧪 Backtest Lab")
+elif page == "Symbolic Studio":
+    st.title("🏗️ Symbolic Studio")
+    st.write("Fit independent mathematical foundations to a single ticker.")
     
-    try:
-        models = sagan.list_models()
-    except Exception as e:
-        st.error(f"Failed to list models: {e}")
-        models = pd.DataFrame()
-
-    if models.empty:
-        st.warning("Train a model first!")
-    else:
-        selected_model_id = st.selectbox("Select Model to Backtest", models['model_id'])
+    ticker = st.text_input("Ticker", "AAPL")
+    if st.button("Scan Signals"):
+        st.session_state.vars = run_ticker_scan(ticker)
         
-        if st.button("Run Simulation"):
-            with st.spinner("Simulating strategy..."):
-                try:
-                    # Get tickers from model metadata
-                    model_meta = sagan.get_model(selected_model_id)
-                    ticker_list = model_meta['tickers']
-                    
-                    prices = fetch_prices(ticker_list, years=1)
-                    returns = prices.pct_change().dropna()
-                    
-                    st.info("Calculating historical equity curve...")
-                    time.sleep(1)
-                    
-                    # Mock backtest logic
-                    dates = returns.index
-                    # Use real mean returns but add mock alpha for demo
-                    strategy_cum = (1 + (returns.mean(axis=1) * 1.2)).cumprod()
-                    benchmark_cum = (1 + returns.mean(axis=1)).cumprod()
-                    
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(x=dates, y=strategy_cum, name="Sagan XAI Strategy", line=dict(color='#58a6ff', width=3)))
-                    fig.add_trace(go.Scatter(x=dates, y=benchmark_cum, name="Equal-Weight Benchmark", line=dict(color='#8b949e', dash='dot')))
-                    
-                    fig.update_layout(
-                        title="Strategy Cumulative Returns",
-                        template="plotly_dark",
-                        xaxis_title="Date",
-                        yaxis_title="Wealth Index",
-                        height=500,
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Total Return", f"{(strategy_cum.iloc[-1]-1):.2%}", delta=f"{(strategy_cum.iloc[-1]-benchmark_cum.iloc[-1]):.2%}")
-                    c2.metric("Sharpe Ratio", "1.84", delta="0.42")
-                    c3.metric("Max Drawdown", "-12.4%", delta_color="inverse")
-                    
-                except Exception as e:
-                    st.error(f"Backtest failed: {e}")
-                    st.code(traceback.format_exc())
-                    logger.error(f"Backtest error: {traceback.format_exc()}")
+    if 'vars' in st.session_state:
+        selected_vars = st.multiselect("Select Signals", st.session_state.vars, default=["Close", "Volume"])
+        r2_target = st.slider("Target R2", 0.90, 0.99, 0.95)
+        
+        if st.button("Train Symbolic Model", type="primary"):
+            with st.status("Solving Equations...") as status:
+                from sagan.ensemble import SymbolicRegressor
+                reg = SymbolicRegressor([ticker], signals=selected_vars, target_r2=r2_target, profile=perf_mode.lower())
+                meta = reg.train()
+                mid = reg.save()
+                st.success(f"Model {mid} live!")
+                status.update(label="Complete!", state="complete")
+
+elif page == "Portfolio Studio":
+    st.title("📂 Portfolio Studio")
+    st.write("Develop independent math functions for each stock and optimize weights via ML.")
+    
+    tickers_input = st.text_input("Portfolio Tickers (comma separated)", "AAPL, MSFT, TSLA, BTC-USD")
+    portfolio = [t.strip() for t in tickers_input.split(",")]
+    
+    col1, col2 = st.columns(2)
+    
+    if col1.button("Develop All Mathematical Foundations", type="primary"):
+        with st.status("Massive Parallel Fitting...") as status:
+            from sagan.ensemble import PortfolioSymbolicEngine
+            engine = PortfolioSymbolicEngine(portfolio, target_r2=0.95, profile=perf_mode.lower())
+            
+            # Use progress bar
+            pb = st.progress(0)
+            def update_pb(p): pb.progress(p)
+            
+            results = engine.train_all(progress_callback=update_pb)
+            st.session_state.port_mids = engine.save_all()
+            st.session_state.port_results = results
+            status.update(label="All stocks fitted!", state="complete")
+            st.success(f"Successfully optimized {len(portfolio)} independent models.")
+
+    if col2.button("Set Target Portfolio (Run ML Allocation)"):
+        if 'port_mids' not in st.session_state:
+            st.error("Develop foundations first!")
+        else:
+            with st.spinner("Kicking in ML Allocation Layer..."):
+                from sagan.models.allocator import PortfolioAllocator
+                allocator = PortfolioAllocator(st.session_state.port_mids)
+                weights = allocator.allocate_weights()
+                st.session_state.weights = weights
+                st.success("Target Portfolio Weights set via ML Gating.")
+
+    if 'weights' in st.session_state:
+        st.divider()
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            # Pie Chart
+            fig = px.pie(values=list(st.session_state.weights.values()), names=list(st.session_state.weights.keys()), 
+                         title="ML Optimized Weights", hole=0.4, template="plotly_dark")
+            st.plotly_chart(fig, use_container_width=True)
+        with c2:
+            st.subheader("Simulated Equity Curve")
+            from sagan.models.allocator import SymbolicSimulator
+            sim = SymbolicSimulator(st.session_state.port_results)
+            df = sim.run_simulation()
+            st.line_chart(df.set_index("Date"))
+
+elif page == "Simulation Lab":
+    st.title("🧪 Simulation Lab")
+    st.info("High-fidelity backtesting of symbolic strategies.")
+    # Legacy logic or new unified backtest
+    st.write("Select a portfolio model to run institutional-grade battery tests.")
+
+elif page == "Whitepaper":
+    st.title("📝 Whitepaper: SymbolicBasis")
+    try:
+        with open("docs/whitepaper.md", "r") as f:
+            st.markdown(f.read())
+    except:
+        st.error("Whitepaper draft not found.")
 
 elif page == "Settings":
     st.title("⚙️ Engine Settings")

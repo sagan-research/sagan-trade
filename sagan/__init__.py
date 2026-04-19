@@ -1,25 +1,19 @@
-"""Sagan XAI – Explainable Probabilistic Ensemble for Trading.
+"""Sagan – Symbolic Mathematical Engine for Trading.
 
-Sagan combines Physics-Informed Neural Networks (PINN), a Temporal Fusion
-Transformer (TFT), and an XAI-RL override layer to produce calibrated
-LONG / SHORT / NEUTRAL signals with built-in explainability.
+Sagan replaces black-box neural networks with transparent, human-readable 
+mathematical equations discovered via FunctionGemma (via Ollama). 
+Targeting R2 > 0.95 for all variables to ensure precision.
 
 Quick start::
 
     import sagan
 
-    # Train a new ensemble on a basket of tickers
-    model_id = sagan.train(["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS"])
+    # Train a new symbolic model
+    model_id = sagan.train(["AAPL"], signals=["Close", "RSI", "Volume"], target_r2=0.95)
 
     # Get a trading signal
     result = sagan.predict()
-    print(result["signal"], result["confidence"])
-
-    # Parallel training (one model per ticker)
-    results = sagan.train_parallel_from_fetch(["AAPL", "MSFT"], num_processes=4)
-
-Documentation:
-    https://sagan-docs.vercel.app
+    print(result["signal"], result["formula"])
 """
 
 from __future__ import annotations
@@ -35,7 +29,7 @@ except ImportError:
     __version__ = "0.1.1"
 
 from sagan.config import config, SaganConfig
-from sagan.ensemble import ExplainableEnsemble, train
+from sagan.ensemble import SymbolicRegressor, train
 from sagan.exceptions import (
     SaganError,
     ModelNotFoundError,
@@ -45,7 +39,6 @@ from sagan.exceptions import (
     RegistryCorruptedError,
 )
 from sagan.logging_config import setup_logging
-from sagan.parallel import train_parallel, train_parallel_from_fetch
 from sagan.predict import predict, batch_predict
 from sagan.registry import list_models, delete_model, export_model, get_model
 from sagan.utils import (
@@ -62,11 +55,8 @@ __all__ = [
     "train",
     "predict",
     "batch_predict",
-    # Ensemble class
-    "ExplainableEnsemble",
-    # Parallel training
-    "train_parallel",
-    "train_parallel_from_fetch",
+    # Symbolic Engine
+    "SymbolicRegressor",
     # Registry
     "list_models",
     "delete_model",

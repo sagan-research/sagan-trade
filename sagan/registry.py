@@ -77,39 +77,39 @@ def _save_registry(registry: dict) -> None:
 
 
 def save_model(
-    model_buy: tf.keras.Model,
-    model_sell: tf.keras.Model,
-    model_hold: tf.keras.Model,
+    model_buy: Any,
+    model_sell: Any,
+    model_hold: Any,
     scaler: Any,
     metadata: dict,
+    is_symbolic: bool = False,
 ) -> str:
     """Persist a trained ensemble to disk and register it.
-
-    Args:
-        model_buy: Keras model for the BUY action head.
-        model_sell: Keras model for the SELL action head.
-        model_hold: Keras model for the HOLD action head.
-        scaler: Fitted :class:`~sklearn.preprocessing.StandardScaler`.
-        metadata: Arbitrary dict of training metadata (tickers, Sharpe, etc.).
-
-    Returns:
-        The generated ``model_id`` string.
-
-    Note:
-        Models are saved in HDF5 format (``.h5``) for broad TF compatibility.
-        Use :func:`load_ensemble` to reload them.
+    
+    Now supports both Keras models and Symbolic/Math expressions.
     """
     model_id = _generate_model_id()
     model_dir: Path = config.models_dir / model_id
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    model_buy.save(str(model_dir / "model_buy.h5"))
-    model_sell.save(str(model_dir / "model_sell.h5"))
-    model_hold.save(str(model_dir / "model_hold.h5"))
+    if is_symbolic:
+        # Save as JSON/Pickle
+        with open(model_dir / "model_buy.json", "w") as f:
+            json.dump(model_buy, f)
+        with open(model_dir / "model_sell.json", "w") as f:
+            json.dump(model_sell, f)
+        with open(model_dir / "model_hold.json", "w") as f:
+            json.dump(model_hold, f)
+    else:
+        # Legacy Keras paths
+        model_buy.save(str(model_dir / "model_buy.h5"))
+        model_sell.save(str(model_dir / "model_sell.h5"))
+        model_hold.save(str(model_dir / "model_hold.h5"))
 
     with open(model_dir / "scaler.pkl", "wb") as f:
         pickle.dump(scaler, f)
 
+    metadata["is_symbolic"] = is_symbolic
     with open(model_dir / "metadata.json", "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
 
@@ -122,49 +122,38 @@ def save_model(
 
 @functools.lru_cache(maxsize=16)
 def load_ensemble(model_id: str):
-    """Load a saved ensemble from disk.
-
-    Args:
-        model_id: The identifier returned by :func:`save_model`.
-
-    Returns:
-        A tuple ``(model_buy, model_sell, model_hold, scaler, metadata)``.
-
-    Raises:
-        ModelNotFoundError: If *model_id* does not correspond to a directory
-            under :attr:`~sagan.config.SaganConfig.models_dir`.
-    """
+    """Load a saved ensemble from disk."""
     model_dir: Path = config.models_dir / model_id
     if not model_dir.exists():
         raise ModelNotFoundError(model_id, str(config.models_dir))
 
-    custom_objects = {
-        "VariableSelectionNetwork": VariableSelectionNetwork,
-        "TemporalFusionBlock": TemporalFusionBlock,
-    }
+    with open(model_dir / "metadata.json", "r", encoding="utf-8") as f:
+        metadata = json.load(f)
 
-    with tf.keras.utils.custom_object_scope(custom_objects):
-        model_buy = tf.keras.models.load_model(
-            str(model_dir / "model_buy.h5"), 
-            custom_objects=custom_objects, 
-            compile=False
-        )
-        model_sell = tf.keras.models.load_model(
-            str(model_dir / "model_sell.h5"), 
-            custom_objects=custom_objects, 
-            compile=False
-        )
-        model_hold = tf.keras.models.load_model(
-            str(model_dir / "model_hold.h5"), 
-            custom_objects=custom_objects, 
-            compile=False
-        )
+    is_symbolic = metadata.get("is_symbolic", False)
+
+    if is_symbolic:
+        with open(model_dir / "model_buy.json", "r") as f:
+            model_buy = json.load(f)
+        with open(model_dir / "model_sell.json", "r") as f:
+            model_sell = json.load(f)
+        with open(model_dir / "model_hold.json", "r") as f:
+            model_hold = json.load(f)
+    else:
+        # Legacy Keras loading
+        import tensorflow as tf
+        from sagan.models.tft import VariableSelectionNetwork, TemporalFusionBlock
+        custom_objects = {
+            "VariableSelectionNetwork": VariableSelectionNetwork,
+            "TemporalFusionBlock": TemporalFusionBlock,
+        }
+        with tf.keras.utils.custom_object_scope(custom_objects):
+            model_buy = tf.keras.models.load_model(str(model_dir / "model_buy.h5"), compile=False)
+            model_sell = tf.keras.models.load_model(str(model_dir / "model_sell.h5"), compile=False)
+            model_hold = tf.keras.models.load_model(str(model_dir / "model_hold.h5"), compile=False)
 
     with open(model_dir / "scaler.pkl", "rb") as f:
         scaler = pickle.load(f)
-
-    with open(model_dir / "metadata.json", "r", encoding="utf-8") as f:
-        metadata = json.load(f)
 
     return model_buy, model_sell, model_hold, scaler, metadata
 

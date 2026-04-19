@@ -1,363 +1,144 @@
-"""Main ensemble trainer for Sagan XAI.
-
-The :class:`ExplainableEnsemble` trains three independent TFT action models
-— buy, sell, and hold — each using a Physics-Informed Neural Network loss
-that encodes mean-reversion as an Ornstein–Uhlenbeck penalty.
-
-After training, call :meth:`~ExplainableEnsemble.save` to persist the
-ensemble to the local registry, and use :func:`~sagan.predict.predict` to
-generate signals from any saved model.
-
-Typical usage::
-
-    from sagan.ensemble import ExplainableEnsemble
-
-    ens = ExplainableEnsemble(
-        tickers=["RELIANCE.NS", "TCS.NS"],
-        window=15,
-        epochs=40,
-    )
-    metadata = ens.train()
-    model_id = ens.save()
-    print(f"Saved as {model_id}  Sharpe={metadata['val_sharpe']:.2f}")
-"""
-
-from __future__ import annotations
-
 import logging
-from typing import Any
-
+from typing import Any, List
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
-from tensorflow.keras.callbacks import EarlyStopping
 
 from sagan.config import config
-from sagan.data import fetch_prices, prepare_probabilistic_data
-from sagan.models.pinn_loss import pinn_loss
-from sagan.models.tft import build_tft_action_model
+from sagan.signals import get_available_signals, fetch_signal_data
+from sagan.models.math_engine import MathematicalEngine, fit_signal_worker
+from sagan.models.llm_bridge import FunctionGemmaBridge
+from sagan.models.manager import ResourceManager
 from sagan.registry import save_model
-from sagan.indicators import compute_rsi, compute_bollinger_bands
+from concurrent.futures import ProcessPoolExecutor
 
-logger = logging.getLogger("sagan")
+logger = logging.getLogger("sagan.ensemble")
 
-__all__ = ["ExplainableEnsemble", "train"]
-
-
-class ExplainableEnsemble:
-    """Three-head TFT ensemble with PINN mean-reversion loss.
-
-    This class manages the full lifecycle of a Sagan model: fetching price
-    data, building and scaling the dataset, training three independent action
-    heads, computing validation metrics, and saving to the registry.
-
-    Args:
-        tickers: List of Yahoo Finance ticker symbols to train on.
-        years: Years of historical data to download. Defaults to 5.
-        window: Look-back window in trading days. Defaults to
-            :attr:`~sagan.config.SaganConfig.default_window`.
-        horizon: Forward horizon for label generation. Defaults to
-            :attr:`~sagan.config.SaganConfig.default_horizon`.
-        threshold: Return threshold for buy/sell/hold labelling. Defaults to
-            :attr:`~sagan.config.SaganConfig.default_threshold`.
-        head_dim: Key/value dimension per attention head. Defaults to
-            :attr:`~sagan.config.SaganConfig.default_head_dim`.
-        num_heads: Number of parallel attention heads. Defaults to
-            :attr:`~sagan.config.SaganConfig.default_num_heads`.
-        ff_dim: Feed-forward hidden dimension. Defaults to
-            :attr:`~sagan.config.SaganConfig.default_ff_dim`.
-        dropout: Dropout probability inside the TFT. Defaults to
-            :attr:`~sagan.config.SaganConfig.default_dropout`.
-        epochs: Maximum training epochs (early stopping may stop earlier).
-            Defaults to :attr:`~sagan.config.SaganConfig.default_epochs`.
-        verbose: If ``True``, Keras training progress is printed to stdout.
-
-    Example:
-        >>> ens = ExplainableEnsemble(["AAPL", "MSFT"], window=15, epochs=20)
-        >>> meta = ens.train()
-        >>> model_id = ens.save()
+class SymbolicRegressor:
     """
-
+    Symbolic Regressor that fits math functions to features and combines them.
+    """
     def __init__(
         self,
-        tickers: list[str],
-        years: int = 5,
-        window: int | None = None,
-        horizon: int | None = None,
-        threshold: float | None = None,
-        head_dim: int | None = None,
-        num_heads: int | None = None,
-        ff_dim: int | None = None,
-        dropout: float | None = None,
-        epochs: int | None = None,
-        verbose: bool = True,
-    ) -> None:
+        tickers: List[str],
+        signals: List[str] = None,
+        target_r2: float = 0.95,
+        period: str = "1y",
+        profile: str = "balanced",
+    ):
         self.tickers = tickers
-        self.years = years
-        self.window = window or config.default_window
-        self.horizon = horizon or config.default_horizon
-        self.threshold = threshold or config.default_threshold
-        self.head_dim = head_dim or config.default_head_dim
-        self.num_heads = num_heads or config.default_num_heads
-        self.ff_dim = ff_dim or config.default_ff_dim
-        self.dropout = dropout or config.default_dropout
-        self.epochs = epochs or config.default_epochs
-        self.verbose = verbose
-
-        self.model_buy: tf.keras.Model | None = None
-        self.model_sell: tf.keras.Model | None = None
-        self.model_hold: tf.keras.Model | None = None
-        self.scaler: StandardScaler | None = None
-        self.metadata: dict[str, Any] = {}
-
-        # Internal dataset arrays (populated by train())
-        self.X: np.ndarray | None = None
-        self.y_probs: np.ndarray | None = None
-        self.y_ret: np.ndarray | None = None
-        self.symbols: list[str] = []
-        self.n_stocks: int = 0
-        self._prices: pd.DataFrame | None = None
-
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
-    def _fetch_and_prepare(self) -> None:
-        """Download prices and build the supervised dataset.
-
-        Populates ``self.X``, ``self.y_probs``, ``self.y_ret``,
-        ``self.symbols``, and ``self.n_stocks``.
-        """
-        prices = fetch_prices(self.tickers, self.years)
-        X, y_probs, y_ret, symbols, n = prepare_probabilistic_data(
-            prices, self.window, self.horizon, self.threshold
-        )
-        self.X = X
-        self.y_probs = y_probs
-        self.y_ret = y_ret
-        self.symbols = symbols
-        self.n_stocks = n
-        self._prices = prices
-        logger.info("Prepared %d samples across %d stocks.", len(X), n)
-
-    def _train_action_model(
-        self,
-        X_train: np.ndarray,
-        y_train_bin: np.ndarray,
-        X_val: np.ndarray,
-        y_val_bin: np.ndarray,
-        name: str,
-        progress_callback: Any = None,
-        progress_increment: float = 0.0,
-    ) -> tf.keras.Model:
-        """Build and train one action head.
-
-        Args:
-            X_train: Training inputs ``(N, window, n_stocks)``.
-            y_train_bin: Binary training labels ``(N,)``.
-            X_val: Validation inputs.
-            y_val_bin: Validation labels.
-            name: Human-readable head name for logging (``"buy"`` / ``"sell"`` / ``"hold"``).
-            progress_callback: Optional callable for UI progress updates.
-            progress_increment: Value to add to the progress bar after completion.
-
-        Returns:
-            The trained Keras model.
-        """
-        logger.info("Training '%s' head…", name)
-        model = build_tft_action_model(
-            self.window, self.n_stocks,
-            self.head_dim, self.num_heads, self.ff_dim, self.dropout,
-        )
-        lambda_pinn = config.pinn_lambda
-
-        def loss_fn(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
-            return pinn_loss(y_true, y_pred, lambda_pinn=lambda_pinn)
-
-        model.compile(
-            optimizer="adam",
-            loss={"logit": loss_fn, "selection_weights": None},
-            metrics={"logit": "accuracy"}
-        )
-        early = EarlyStopping(patience=5, restore_best_weights=True)
-        model.fit(
-            X_train, {"logit": y_train_bin},
-            epochs=self.epochs,
-            batch_size=32,
-            validation_data=(X_val, {"logit": y_val_bin}),
-            callbacks=[early],
-            verbose=1 if self.verbose else 0,
-        )
-        if progress_callback:
-            progress_callback(progress_increment)
-        return model
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
-    def train(self, progress_callback: Any = None) -> dict[str, Any]:
-        """Fetch data, train all three action heads, and compute metrics.
-
-        This method:
-
-        1. Downloads price data (via :func:`~sagan.data.fetch_prices`).
-        2. Builds the sliding-window dataset.
-        3. Splits 80/20 into train / validation.
-        4. Standardises inputs using :class:`~sklearn.preprocessing.StandardScaler`.
-        5. Trains BUY, SELL, and HOLD models with PINN loss.
-        6. Computes validation Sharpe ratio and XAI override fraction.
-
-        Returns:
-            A metadata dict with keys: ``tickers``, ``window``, ``horizon``,
-            ``threshold``, TFT hyper-parameters, ``val_sharpe``,
-            ``override_fraction``, ``created_at``.
-
-        Raises:
-            FetchError: If price data cannot be downloaded.
-            InsufficientDataError: If there is not enough data for training.
-        """
-        self._fetch_and_prepare()
-        if progress_callback:
-            progress_callback(0.1)
-        assert self.X is not None and self.y_probs is not None
-
-        split = int(0.8 * len(self.X))
-        X_train, X_val = self.X[:split], self.X[split:]
-        y_train, y_val = self.y_probs[:split], self.y_probs[split:]
-
+        self.target_r2 = target_r2
+        self.period = period
+        self.signals = signals or ["Open", "High", "Low", "Close", "Volume"]
         self.scaler = StandardScaler()
-        X_train = self.scaler.fit_transform(
-            X_train.reshape(-1, self.n_stocks)
-        ).reshape(X_train.shape)
-        X_val = self.scaler.transform(
-            X_val.reshape(-1, self.n_stocks)
-        ).reshape(X_val.shape)
-        self.X_train, self.X_val = X_train, X_val
-
-        self.model_buy = self._train_action_model(
-            X_train, y_train[:, 0], X_val, y_val[:, 0], "buy", 
-            progress_callback, 0.3
-        )
-        self.model_sell = self._train_action_model(
-            X_train, y_train[:, 1], X_val, y_val[:, 1], "sell", 
-            progress_callback, 0.3
-        )
-        self.model_hold = self._train_action_model(
-            X_train, y_train[:, 2], X_val, y_val[:, 2], "hold", 
-            progress_callback, 0.3
-        )
-
-        # Validation metrics
-        X_val_tf = tf.convert_to_tensor(X_val, dtype=tf.float32)
-        preds_buy = self.model_buy(X_val_tf, training=False)
-        preds_sell = self.model_sell(X_val_tf, training=False)
-        preds_hold = self.model_hold(X_val_tf, training=False)
-
-        logits_buy = preds_buy["logit"].numpy().flatten()
-        logits_sell = preds_sell["logit"].numpy().flatten()
-        logits_hold = preds_hold["logit"].numpy().flatten()
+        self.meta = {}
         
-        logits = np.stack([logits_buy, logits_sell, logits_hold], axis=1)
-        probs = tf.nn.softmax(logits, axis=-1).numpy()
-        final_action = np.argmax(probs, axis=1)
+        self.resource_manager = ResourceManager(profile)
+        self.llm = FunctionGemmaBridge()
+        
+        # Stores fitted parameters for each signal: {signal: (func_name, params, r2)}
+        self.fitted_signals = {}
+        self.composite_formula = None
 
-        val_returns = self.y_ret[split : split + len(final_action)]
-        strategy_returns = np.where(
-            final_action == 0, val_returns,
-            np.where(final_action == 1, -val_returns, 0),
-        )
-        sharpe = (
-            float(np.sqrt(252) * np.mean(strategy_returns) / (np.std(strategy_returns) + 1e-8))
-        )
-        override_frac = float(np.mean(probs.max(axis=1) < config.xai_confidence_threshold))
-
-        # Automated Threshold Optimization
-        logger.info("Optimizing ticker-specific thresholds...")
-        ticker_thresholds = {}
-        for i, ticker in enumerate(self.tickers):
-            ticker_prices = self._prices[ticker]
-            rsi = compute_rsi(ticker_prices)
-            upper, _, lower = compute_bollinger_bands(ticker_prices)
+    def train(self, progress_callback: Any = None):
+        """
+        Executes the symbolic training workflow with OS-level optimizations.
+        """
+        self.resource_manager.apply_optimizations()
+        if progress_callback: progress_callback(0.05)
+        
+        # 1. Fetch Data
+        ticker = self.tickers[0]
+        data = fetch_signal_data(ticker, self.signals, period=self.period)
+        if data.empty:
+            raise ValueError(f"No data found for {ticker}")
             
-            # Simple heuristic optimization: 
-            # Find RSI levels and BB deviations that align with the training period's labels
-            # Here we default to conservative 30/70 and 2.0 std dev as a baseline
-            # but we could refine this with a search loop.
-            ticker_thresholds[ticker] = {
-                "rsi_buy": 35.0,
-                "rsi_sell": 65.0,
-                "bb_dev_buy": -1.5,
-                "bb_dev_sell": 1.5,
-            }
+        if progress_callback: progress_callback(0.15)
+        
+        # 2. Parallel Fitting (Max Throughput)
+        worker_count = self.resource_manager.get_worker_count()
+        logger.info(f"Parallellizing fit across {worker_count} workers...")
+        
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            futures = [
+                executor.submit(fit_signal_worker, data[s].values, s, self.target_r2)
+                for s in self.signals
+            ]
+            
+            for i, future in enumerate(futures):
+                try:
+                    s_name, result = future.result()
+                    self.fitted_signals[s_name] = result
+                    if progress_callback:
+                        progress_callback(0.15 + (0.5 * (i+1)/len(futures)))
+                except Exception as e:
+                    logger.error(f"Fitting failed for signal: {e}")
 
-        self.metadata = {
+        # 3. Discover Composite Function via LLM
+        logger.info("Discovering composite function via FunctionGemma...")
+        self.composite_formula = self.llm.suggest_composite_function("Close_Trend", self.signals)
+        logger.info(f"Discovered: {self.composite_formula}")
+        
+        if progress_callback: progress_callback(0.8)
+        
+        # 4. Finalize Metadata
+        self.meta = {
             "tickers": self.tickers,
-            "window": self.window,
-            "horizon": self.horizon,
-            "threshold": self.threshold,
-            "head_dim": self.head_dim,
-            "num_heads": self.num_heads,
-            "ff_dim": self.ff_dim,
-            "dropout": self.dropout,
-            "val_sharpe": sharpe,
-            "override_fraction": override_frac,
-            "ticker_thresholds": ticker_thresholds,
+            "signals": self.signals,
+            "fitted_signals": self.fitted_signals,
+            "composite_formula": self.composite_formula,
+            "val_r2": np.mean([v["r2"] for v in self.fitted_signals.values()]),
             "created_at": pd.Timestamp.now().isoformat(),
         }
-        logger.info(
-            "Training complete — val Sharpe=%.3f  override_frac=%.1f%%",
-            sharpe, override_frac * 100,
-        )
-        return self.metadata
-
-    # Sklearn-style alias
-    fit = train
+        
+        return self.meta
 
     def save(self) -> str:
-        """Persist the trained ensemble to the registry.
-
-        Must be called after :meth:`train`.
-
-        Returns:
-            The generated ``model_id`` string.
-
-        Raises:
-            RuntimeError: If :meth:`train` has not been called yet.
-        """
-        if self.model_buy is None:
-            raise RuntimeError("Call .train() before .save().")
-        model_id = save_model(
-            self.model_buy, self.model_sell, self.model_hold,
-            self.scaler, self.metadata,
+        # For symbolic, model_buy/sell/hold can all share the same logic or be variations
+        # Here we save the fitted signals and formula
+        return save_model(
+            model_buy=self.meta,
+            model_sell=self.meta,
+            model_hold=self.meta,
+            scaler=self.scaler,
+            metadata=self.meta,
+            is_symbolic=True
         )
-        logger.info("Ensemble saved → %s (Sharpe=%.3f)", model_id, self.metadata["val_sharpe"])
-        return model_id
 
-
-# ---------------------------------------------------------------------------
-# Convenience function
-# ---------------------------------------------------------------------------
-
-def train(tickers: list[str], progress_callback: Any = None, **kwargs: Any) -> str:
-    """Train a new ensemble and save it to the registry in one call.
-
-    This is the primary entry-point for most users. It creates an
-    :class:`ExplainableEnsemble`, calls :meth:`~ExplainableEnsemble.train`,
-    and returns the saved ``model_id``.
-
-    Args:
-        tickers: List of Yahoo Finance ticker symbols.
-        progress_callback: Optional callable for UI progress updates.
-        **kwargs: Any keyword argument accepted by :class:`ExplainableEnsemble`
-            (e.g. ``window``, ``epochs``, ``head_dim``).
-
-    Returns:
-        The ``model_id`` string of the saved ensemble.
+class PortfolioSymbolicEngine:
     """
-    ensemble = ExplainableEnsemble(tickers, **kwargs)
-    ensemble.train(progress_callback=progress_callback)
-    model_id = ensemble.save()
-    
-    return model_id
+    Manages a basket of tickers, fitting independent symbolic models for each.
+    """
+    def __init__(self, tickers: List[str], **kwargs):
+        self.tickers = tickers
+        self.kwargs = kwargs
+        self.regressors = {t: SymbolicRegressor([t], **kwargs) for t in tickers}
+        self.results = {}
+
+    def train_all(self, progress_callback: Any = None):
+        """
+        Trains all tickers in the portfolio independently.
+        """
+        n = len(self.tickers)
+        for i, (t, reg) in enumerate(self.regressors.items()):
+            logger.info(f"Training Portfolio Component: {t}")
+            
+            # Simple wrapper for per-ticker progress
+            def sub_callback(p):
+                if progress_callback:
+                    # Map 0-1 of subtask to i/n -> (i+1)/n of total
+                    total_p = (i + p) / n
+                    progress_callback(total_p)
+            
+            self.results[t] = reg.train(progress_callback=sub_callback)
+            
+        return self.results
+
+    def save_all(self) -> List[str]:
+        return [reg.save() for reg in self.regressors.values()]
+
+def train(tickers: List[str], **kwargs) -> str:
+    """Primary entry point for training."""
+    regressor = SymbolicRegressor(tickers, **kwargs)
+    regressor.train()
+    return regressor.save()

@@ -5,7 +5,6 @@ from pathlib import Path
 
 from sagan.config import config
 from sagan.explain.gemma import run_explanation
-from sagan.explain.gemma import run_explanation
 from sagan.portfolio.csv_import import import_portfolio
 from sagan.portfolio.snaptrade import get_snaptrade_holdings
 from sagan.registry import list_models
@@ -16,9 +15,6 @@ from sagan.metrics import run_novelty_battery
 from sagan.parallel import train_parallel_from_fetch
 import subprocess
 import sys
-from sagan.metrics import run_novelty_battery
-import subprocess
-import sys
 
 app = typer.Typer(help="Sagan XAI – Quantitative Trading Signal Library")
 
@@ -26,20 +22,27 @@ app = typer.Typer(help="Sagan XAI – Quantitative Trading Signal Library")
 @app.command()
 def train(
     tickers: List[str] = typer.Argument(..., help="Tickers to train on"),
-    parallel: bool = typer.Option(False, "--parallel", help="Use parallel training (one model per ticker)"),
-    epochs: int = typer.Option(30, "--epochs", help="Training epochs"),
-    years: int = typer.Option(5, "--years", help="Years of data to fetch"),
+    signals: Optional[List[str]] = typer.Option(None, "--signals", "-s", help="Signals to include (e.g. Open, High, Volume)"),
+    r2_target: float = typer.Option(0.95, "--r2", help="Target R2 for each variable fit"),
+    years: int = typer.Option(1, "--years", help="Years of data to fetch"),
+    profile: str = typer.Option("balanced", "--profile", help="Performance profile (eco, balanced, turbo)"),
 ):
-    """Train a new signal ensemble."""
+    """Train a new symbolic mathematical ensemble."""
     
-    typer.echo(f"Training ensemble for {tickers}...")
+    typer.echo(f"Training symbolic ensemble for {tickers}...")
+    typer.echo(f"Performance Profile: {profile.upper()}")
     
-    if parallel:
-        results = train_parallel_from_fetch(tickers, epochs=epochs, years=years)
-        typer.echo(f"OK Parallel training complete: {list(results.values())}")
-    else:
-        model_id = train_ens(tickers, epochs=epochs, years=years)
-        typer.secho(f"OK Training complete. Model ID: {model_id}", fg=typer.colors.GREEN)
+    model_id = train_ens(tickers, signals=signals, target_r2=r2_target, period=f"{years}y", profile=profile)
+    typer.secho(f"OK Training complete. Model ID: {model_id}", fg=typer.colors.GREEN)
+
+@app.command()
+def vars(ticker: str = typer.Argument(..., help="Ticker to explore")):
+    """List all available signals for a ticker (from yfinance)."""
+    from sagan.signals import get_available_signals
+    available = get_available_signals(ticker)
+    typer.echo(f"Available signals for {ticker}:")
+    for s in available:
+        typer.echo(f" - {s}")
 
 @app.command()
 def predict(
@@ -121,10 +124,10 @@ def dash():
     """Launch the Sagan Quant Studio (Streamlit) dashboard."""
     app_path = Path(__file__).parent.parent / "app.py"
     if not app_path.exists():
-        typer.secho(f"❌ Error: Dashboard file not found at {app_path}", fg=typer.colors.RED)
+        typer.secho(f"Error: Dashboard file not found at {app_path}", fg=typer.colors.RED)
         return
     
-    typer.secho(f"🚀 Starting Sagan Quant Studio dashboard...", fg=typer.colors.GREEN)
+    typer.secho(f"Starting Sagan Quant Studio dashboard...", fg=typer.colors.GREEN)
     try:
         subprocess.run([sys.executable, "-m", "streamlit", "run", str(app_path)], check=False)
     except KeyboardInterrupt:

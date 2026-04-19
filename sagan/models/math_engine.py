@@ -1,0 +1,104 @@
+import numpy as np
+import pandas as pd
+from scipy.optimize import curve_fit
+from sklearn.metrics import r2_score
+import logging
+import numba
+
+logger = logging.getLogger("sagan.math")
+
+@numba.jit(nopython=True)
+def polynomial_kernel(t, coeffs):
+    # coeffs is an array, we use Horner's method for speed in JIT
+    res = 0.0
+    for c in coeffs:
+        res = res * t + c
+    return res
+
+@numba.jit(nopython=True)
+def fourier_kernel(t, params):
+    # params: [a0, a1, b1, w1, a2, b2, w2, ...]
+    res = params[0]
+    n_harmonics = (len(params) - 1) // 3
+    for i in range(n_harmonics):
+        a = params[1 + i*3]
+        b = params[1 + i*3 + 1]
+        w = params[1 + i*3 + 2]
+        res += a * np.cos(w * t) + b * np.sin(w * t)
+    return res
+
+def fit_signal_worker(y, signal_name, target_r2=0.95):
+    """
+    Standalone worker function for parallel fitting.
+    """
+    engine = MathematicalEngine()
+    func, params, r2 = engine.fit_variable(y, target_r2=target_r2)
+    return signal_name, {"func": func, "params": params, "r2": r2}
+
+class MathematicalEngine:
+    """
+    Library of basis functions and iterative fitting logic.
+    """
+    
+    @staticmethod
+    def polynomial(t, *coeffs):
+        return polynomial_kernel(t, np.array(coeffs))
+
+    @staticmethod
+    def fourier(t, *params):
+        return fourier_kernel(t, np.array(params))
+
+    def fit_variable(self, y: np.ndarray, target_r2: float = 0.95, max_complexity: int = 20):
+        """
+        Iteratively tries to fit y using increasing complexity until target_r2 is met.
+        """
+        t = np.arange(len(y))
+        y_norm = (y - np.mean(y)) / (np.std(y) + 1e-8)
+        
+        best_r2 = -np.inf
+        best_func = None
+        best_popt = None
+        
+        # 1. Try Polynomials
+        for degree in range(1, 10):
+            coeffs = np.polyfit(t, y_norm, degree)
+            y_pred = np.polyval(coeffs, t)
+            r2 = r2_score(y_norm, y_pred)
+            if r2 > best_r2:
+                best_r2 = r2
+                best_func = "polynomial"
+                best_popt = coeffs.tolist()
+            
+            if r2 >= target_r2:
+                return best_func, best_popt, r2
+
+        # 2. Try Fourier Series if polynomial isn't enough
+        for n_harmonics in range(1, 6):
+            initial_guess = [0.0] + [0.1, 0.1, 0.05] * n_harmonics
+            try:
+                popt, _ = curve_fit(self.fourier, t, y_norm, p0=initial_guess, maxfev=2000)
+                y_pred = self.fourier(t, *popt)
+                r2 = r2_score(y_norm, y_pred)
+                if r2 > best_r2:
+                    best_r2 = r2
+                    best_func = "fourier"
+                    best_popt = popt.tolist()
+                
+                if r2 >= target_r2:
+                    return best_func, best_popt, r2
+            except:
+                pass
+
+        return best_func, best_popt, best_r2
+
+    @staticmethod
+    def evaluate(func_name: str, t: np.ndarray, params: list):
+        if func_name == "polynomial":
+            return polynomial_kernel(t, np.array(params))
+        elif func_name == "fourier":
+            return fourier_kernel(t, np.array(params))
+        return np.zeros_like(t)
+
+def soft_gating(x, weights):
+    exp_w = np.exp(weights - np.max(weights))
+    return exp_w / np.sum(exp_w)
