@@ -47,15 +47,19 @@ def predict(model_id: str = None) -> PredictionResult:
     
     # 1. Evaluate fitted signals
     signal_values = {}
+    available_signals = []
     for s in signals:
+        if s not in fitted:
+            logger.warning(f"Signal {s} not found in fitted models, skipping.")
+            continue
+        
         f_meta = fitted[s]
         val = MathematicalEngine.evaluate(f_meta["func"], t, f_meta["params"])
-        signal_values[s] = val[-1] # Take the most recent value
+        signal_values[s] = val[-1]
+        available_signals.append(s)
 
     # 2. Evaluate composite formula
-    # Security note: Use a safer evaluation if possible, but for this POC:
-    # We replace variable names with their current values
-    eval_context = {s: signal_values[s] for s in signals}
+    eval_context = {s: signal_values[s] for s in available_signals}
     # Add numpy functions to context
     eval_context.update({"np": np, "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos})
     

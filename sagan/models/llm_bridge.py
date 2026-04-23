@@ -20,26 +20,36 @@ class FunctionGemmaBridge:
         the target_variable using a combination of input_variables.
         """
         prompt = f"""
-        You are a mathematical symbolic regression expert. 
-        Task: Suggest a mathematical formula to predict {target_variable} using the following variables:
-        {', '.join(input_variables)}
+        [INST] <<SYS>>
+        You are a symbolic regression engine. Your output MUST ONLY be a single line containing a valid Python/NumPy mathematical expression. 
+        Do not provide explanations. Do not provide disclaimers. Do not provide advice.
+        <</SYS>>
+
+        Task: Return a mathematical formula for {target_variable} using these variables: {', '.join(input_variables)}
         
-        Rules:
-        1. Use common operators (+, -, *, /, exp, log, sin, cos).
-        2. The output must be a valid Python/NumPy expression using variable names from the list.
-        3. Keep it relatively simple but effective for trend capturing.
+        Requirements:
+        1. Use arithmetic (+, -, *, /) and NumPy functions (np.exp, np.log, np.sin).
+        2. Output MUST be a single line.
+        3. No text or markdown around the formula.
         
-        Example Output:
-        (Close * 0.5) + (RSI / 100) * exp(Volume / 1e6)
-        
-        Suggest the formula for {target_variable}:
-        """
+        Examples: 
+        (Adj_Close * 0.5) + (Volume / 1e6)
+        np.exp(Adj_Close / 100) * np.sin(Volume)
+
+        Formula for {target_variable}: [/INST]"""
         
         try:
             response = self.client.generate(model=self.model, prompt=prompt)
-            # The model might return extra text, we try to extract the expression
-            # For a production 'functioncalling' model, we'd use its native tool format.
-            return response['response'].strip()
+            raw = response['response'].strip()
+            
+            # Basic cleanup in case the model ignored instructions
+            lines = [line.strip() for line in raw.split("\n") if line.strip() and ("(" in line or "np." in line or any(v in line for v in input_variables))]
+            if not lines:
+                return " + ".join(input_variables) # Minimal fallback
+            
+            # Take the longest line that looks like a formula
+            formula = max(lines, key=len)
+            return formula.replace("```python", "").replace("```", "").strip()
         except Exception as e:
             logger.error(f"Ollama call failed: {e}")
             # Fallback to a simple linear combination if AI fails
@@ -49,7 +59,6 @@ class FunctionGemmaBridge:
         """
         Refines the formula based on statistical feedback (placeholder for active learning).
         """
-        # This could be another call to Gemma to refine parameters if R2 is low
         return formula
 
 # Define tools for FunctionGemma (Schema)

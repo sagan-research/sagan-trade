@@ -29,7 +29,7 @@ class SymbolicRegressor:
         self.tickers = tickers
         self.target_r2 = target_r2
         self.period = period
-        self.signals = signals or ["Open", "High", "Low", "Close", "Volume"]
+        self.signals = signals or ["Open", "High", "Low", "Adj Close", "Volume"]
         self.scaler = StandardScaler()
         self.meta = {}
         
@@ -76,7 +76,7 @@ class SymbolicRegressor:
 
         # 3. Discover Composite Function via LLM
         logger.info("Discovering composite function via FunctionGemma...")
-        self.composite_formula = self.llm.suggest_composite_function("Close_Trend", self.signals)
+        self.composite_formula = self.llm.suggest_composite_function("Adj_Close_Trend", self.signals)
         logger.info(f"Discovered: {self.composite_formula}")
         
         if progress_callback: progress_callback(0.8)
@@ -134,8 +134,8 @@ class PortfolioSymbolicEngine:
             
         return self.results
 
-    def save_all(self) -> List[str]:
-        return [reg.save() for reg in self.regressors.values()]
+    def save_all(self) -> dict:
+        return {t: reg.save() for t, reg in self.regressors.items()}
 
 def train(tickers: List[str], **kwargs) -> str:
     """Primary entry point for training."""

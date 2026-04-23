@@ -4,8 +4,8 @@ with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
-    name="sagan-xai",
-    version="0.1.5",
+    name="sagan-trade",
+    version="0.3.1",
     author="Sagan Labs",
     author_email="hello@sagan-docs.vercel.app",
     description="Explainable probabilistic ensemble for mean reversion trading",

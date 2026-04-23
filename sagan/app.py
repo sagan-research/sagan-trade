@@ -66,7 +66,11 @@ if page == "Symbolic Hub":
         
         c1, c2, c3 = st.columns(3)
         c1.metric("Signal", res['signal'])
-        c2.metric("Mean R2", f"{np.mean(list(res['r2_stats'].values())):.2%}")
+        
+        r2_list = list(res['r2_stats'].values())
+        mean_r2 = np.mean(r2_list) if r2_list else 0.0
+        
+        c2.metric("Mean R2", f"{mean_r2:.2%}")
         c3.metric("Model ID", res['model_id'][:8])
         
         st.subheader("Discovered Formula")
@@ -85,7 +89,7 @@ elif page == "Symbolic Studio":
         st.session_state.vars = run_ticker_scan(ticker)
         
     if 'vars' in st.session_state:
-        selected_vars = st.multiselect("Select Signals", st.session_state.vars, default=["Close", "Volume"])
+        selected_vars = st.multiselect("Select Signals", st.session_state.vars, default=["Adj Close", "Volume"])
         r2_target = st.slider("Target R2", 0.90, 0.99, 0.95)
         
         if st.button("Train Symbolic Model", type="primary"):

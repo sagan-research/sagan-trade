@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.1] – 2026-04-23
+
+### Added
+- **SymbolicBasis Framework**: Hierarchical Polynomial and Fourier basis discovery for high-fidelity fitting ($R^2 \ge 0.92$).
+- **FunctionGemma Integration**: AI-orchestrated mathematical composition of signals.
+- **Portfolio Studio**: New dashboard for multi-asset portfolio mathematical discovery.
+- **Improved CLI**: New commands for portfolio training and model management.
+
+## [0.3.0] – 2026-04-23
+
+### Changed
+- Major rebranding to **Sagan Trade**.
+- Transitioned to `pyproject.toml` as the primary build configuration.
+
 ## [0.2.1] – 2026-04-15
 
 ### Fixed

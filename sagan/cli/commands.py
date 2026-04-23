@@ -11,8 +11,7 @@ from sagan.registry import list_models
 from sagan.ensemble import train as train_ens
 from sagan.predict import predict as predict_ens
 from sagan.database import get_logs
-from sagan.metrics import run_novelty_battery
-from sagan.parallel import train_parallel_from_fetch
+from sagan.parallel import train_parallel
 import subprocess
 import sys
 
@@ -34,6 +33,18 @@ def train(
     
     model_id = train_ens(tickers, signals=signals, target_r2=r2_target, period=f"{years}y", profile=profile)
     typer.secho(f"OK Training complete. Model ID: {model_id}", fg=typer.colors.GREEN)
+
+@app.command()
+def train_portfolio(
+    tickers: str = typer.Argument(..., help="Comma-separated tickers"),
+    r2_target: float = typer.Option(0.95, "--r2", help="Target R2"),
+    profile: str = typer.Option("balanced", "--profile", help="Performance profile"),
+):
+    """Develop independent mathematical foundations for a portfolio."""
+    ticker_list = [t.strip() for t in tickers.split(",")]
+    typer.echo(f"Developing Portfolio Foundations for {ticker_list}...")
+    mids = train_parallel(ticker_list, target_r2=r2_target, profile=profile)
+    typer.secho(f"OK Portfolio ready. Registered IDs: {list(mids.values())}", fg=typer.colors.GREEN)
 
 @app.command()
 def vars(ticker: str = typer.Argument(..., help="Ticker to explore")):

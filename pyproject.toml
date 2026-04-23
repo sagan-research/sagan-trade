@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # ---------------------------------------------------------------------------
 [project]
 name = "sagan-trade"
-version = "0.2.7"
+version = "0.3.1"
 description = "Strategic Symbolic Trading Engine with iterative R2 fitting and FunctionGemma discovery."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -45,6 +45,7 @@ dependencies = [
     "typer",
     "snaptrade-python-sdk",
     "schedule",
+    "requests",
 ]
 
 [project.optional-dependencies]
@@ -75,11 +76,12 @@ docs = [
     "mkdocstrings[python]>=0.24",
     "mkdocs-git-revision-date-localized-plugin>=1.2",
 ]
-
 [project.scripts]
 sagan = "sagan.cli.commands:app"
+sagan-download-models = "sagan.symbolic_lib.download_models:main"
 
 [project.urls]
+Repository     = "https://github.com/That-Tech-Geek/sagan-trade"
 Homepage       = "https://sagan-trade.vercel.app"
 Documentation  = "https://sagan-trade.vercel.app"
 Source         = "https://github.com/That-Tech-Geek/sagan-trade"

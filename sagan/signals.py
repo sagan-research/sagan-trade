@@ -12,7 +12,7 @@ def get_available_signals(ticker_symbol: str) -> list[str]:
         ticker = yf.Ticker(ticker_symbol)
         
         # 1. Historical OHLCV + Basic Indicators if possible
-        history = ticker.history(period="1y")
+        history = ticker.history(period="1y", auto_adjust=False)
         cols = list(history.columns)
         
         # 2. Key Statistics / Info (Numerical only)
@@ -35,7 +35,13 @@ def fetch_signal_data(ticker_symbol: str, signal_names: list[str], period: str =
     Fetches the actual data for the selected signals.
     """
     ticker = yf.Ticker(ticker_symbol)
-    history = ticker.history(period=period)
+    history = ticker.history(period=period, auto_adjust=False)
+    
+    # If user asked for 'Adj Close' but it's not there (rare), or if it's there as 'Close'
+    if "Adj Close" in signal_names and "Adj Close" not in history.columns:
+        if "Close" in history.columns:
+            logger.info(f"Mapping 'Adj Close' to 'Close' for {ticker_symbol}")
+            history["Adj Close"] = history["Close"]
     
     # Extract historical columns
     available_hist = [s for s in signal_names if s in history.columns]
