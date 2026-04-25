@@ -74,10 +74,36 @@ class SymbolicRegressor:
                 except Exception as e:
                     logger.error(f"Fitting failed for signal: {e}")
 
-        # 3. Discover Composite Function via LLM
-        logger.info("Discovering composite function via FunctionGemma...")
-        self.composite_formula = self.llm.suggest_composite_function("Adj_Close_Trend", self.signals)
-        logger.info(f"Discovered: {self.composite_formula}")
+        # 3. Discover Composite Function (Nonlinear Search)
+        logger.info("Discovering optimal nonlinear composition...")
+        
+        # Split data for out-of-sample validation
+        split_idx = int(len(data) * 0.8)
+        train_data = data.iloc[:split_idx]
+        val_data = data.iloc[split_idx:]
+        
+        # Get candidates from LLM
+        candidates = self.llm.suggest_candidates("Adj_Close_Trend", self.signals, count=5)
+        
+        # Add robust default nonlinear forms
+        s1, s2 = self.signals[0], self.signals[1]
+        candidates.extend([
+            f"({s1} * {s2})",
+            f"np.log(np.abs({s1}) + 1) * {s2}",
+            f"({s1} / (np.abs({s2}) + 1))",
+            f"np.sin({s1}) * np.exp({s2} / np.max(np.abs({s2})))",
+            f"({s1} ** 2) - ({s2} ** 2)",
+            f"np.sqrt(np.abs({s1})) + np.sqrt(np.abs({s2}))",
+            f"({s1} + {s2}) / 2", # Simple average
+            f"({s1} * 0.7) + ({s2} * 0.3)" # Weighted linear
+        ])
+        
+        # Select the best one based on validation R2
+        engine = MathematicalEngine()
+        best_formula, best_r2 = engine.find_best_composition(train_data, val_data, ticker, candidates)
+        
+        self.composite_formula = best_formula
+        logger.info(f"Optimal Formula: {self.composite_formula} (Val R2: {best_r2:.4f})")
         
         if progress_callback: progress_callback(0.8)
         

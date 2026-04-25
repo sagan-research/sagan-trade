@@ -19,8 +19,9 @@ class PredictionResult(TypedDict):
     r2_stats: dict[str, float]
     model_id: str
     timestamp: str
+    xai_justification: dict[str, Any]
 
-def predict(model_id: str = None) -> PredictionResult:
+def predict(model_id: str = None, compliance: bool = False) -> PredictionResult:
     """
     Predicts using a symbolic or legacy ensemble.
     """
@@ -84,6 +85,10 @@ def predict(model_id: str = None) -> PredictionResult:
         "r2_stats": {s: v["r2"] for s, v in fitted.items()},
         "model_id": model_id,
         "timestamp": datetime.now().isoformat(),
+        "xai_justification": {
+            "reason": f"Discovered formula '{formula}' suggests a {signal} trend based on recent signal values.",
+            "conflict": False
+        }
     }
 
 def batch_predict(model_ids: list[str] = None) -> dict[str, Any]:

@@ -46,12 +46,21 @@ def fetch_signal_data(ticker_symbol: str, signal_names: list[str], period: str =
     # Extract historical columns
     available_hist = [s for s in signal_names if s in history.columns]
     data = history[available_hist].copy()
+
+    # Add Technical Indicators if requested
+    if "SMA_20" in signal_names:
+        data["SMA_20"] = history["Close"].rolling(window=20).mean()
+    if "RSI" in signal_names:
+        delta = history["Close"].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        data["RSI"] = 100 - (100 / (1 + rs))
     
-    # For info signals, we'll repeat the static value across the history if selected
-    # (Though fitting a static value to R2 > 0.95 is trivial)
+    # For info signals...
     info = ticker.info
     for s in signal_names:
-        if s in info and s not in history.columns:
+        if s in info and s not in history.columns and s not in data.columns:
             data[s] = info[s]
             
     return data.ffill().dropna()

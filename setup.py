@@ -5,10 +5,10 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="sagan-trade",
-    version="0.3.1",
+    version="0.3.5",
     author="Sagan Labs",
     author_email="hello@sagan-docs.vercel.app",
-    description="Explainable probabilistic ensemble for mean reversion trading",
+    description="High-throughput symbolic regression engine for mathematical alpha generation",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/sagan-labs/sagan-xai",

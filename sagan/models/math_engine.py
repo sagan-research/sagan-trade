@@ -99,6 +99,44 @@ class MathematicalEngine:
             return fourier_kernel(t, np.array(params))
         return np.zeros_like(t)
 
+    def find_best_composition(self, train_data: pd.DataFrame, val_data: pd.DataFrame, target_col: str, candidates: list[str]) -> tuple[str, float]:
+        """
+        Evaluates several candidate formulas on validation data and returns the best one.
+        """
+        best_r2 = -np.inf
+        best_formula = candidates[0] if candidates else " + ".join(train_data.columns)
+        
+        # Ensure we have np in context for eval
+        eval_context = {"np": np, "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos}
+        
+        for formula in candidates:
+            try:
+                # 1. Evaluate on training data to check validity
+                train_context = {col: train_data[col].values for col in train_data.columns}
+                train_context.update(eval_context)
+                
+                # Basic cleanup
+                clean_formula = formula.replace("^", "**")
+                
+                # 2. Evaluate on validation data for OOS performance
+                val_context = {col: val_data[col].values for col in val_data.columns}
+                val_context.update(eval_context)
+                
+                y_val_pred = eval(clean_formula, {"__builtins__": {}}, val_context)
+                y_val_true = val_data[target_col].values
+                
+                r2 = r2_score(y_val_true, y_val_pred)
+                logger.info(f"Formula: {formula} | Val R2: {r2:.4f}")
+                
+                if r2 > best_r2:
+                    best_r2 = r2
+                    best_formula = formula
+            except Exception as e:
+                logger.debug(f"Failed to evaluate candidate {formula}: {e}")
+                continue
+                
+        return best_formula, best_r2
+
 def soft_gating(x, weights):
     exp_w = np.exp(weights - np.max(weights))
     return exp_w / np.sum(exp_w)

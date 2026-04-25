@@ -52,7 +52,7 @@ class ResourceManager:
                     "normal": psutil.NORMAL_PRIORITY_CLASS,
                     "above_normal": psutil.ABOVE_NORMAL_PRIORITY_CLASS,
                 }
-                p.set_priority(priority_map.get(self.profile["priority"], psutil.NORMAL_PRIORITY_CLASS))
+                p.nice(priority_map.get(self.profile["priority"], psutil.NORMAL_PRIORITY_CLASS))
             else: # Unix
                 priority_map = {
                     "below_normal": 10,

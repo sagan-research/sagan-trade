@@ -19,41 +19,56 @@ class FunctionGemmaBridge:
         Asks FunctionGemma to suggest a mathematical expression to predict 
         the target_variable using a combination of input_variables.
         """
+        candidates = self.suggest_candidates(target_variable, input_variables, count=1)
+        return candidates[0] if candidates else " + ".join(input_variables)
+
+    def suggest_candidates(self, target_variable: str, input_variables: List[str], count: int = 5) -> List[str]:
+        """
+        Asks FunctionGemma to suggest multiple candidate mathematical expressions.
+        """
         prompt = f"""
         [INST] <<SYS>>
-        You are a symbolic regression engine. Your output MUST ONLY be a single line containing a valid Python/NumPy mathematical expression. 
-        Do not provide explanations. Do not provide disclaimers. Do not provide advice.
+        You are a symbolic regression engine. Your output MUST ONLY be a list of {count} valid Python/NumPy mathematical expressions, one per line. 
+        Focus on nonlinear interactions like multiplication, division, log, and exp.
+        Do not provide explanations. Do not provide markdown.
         <</SYS>>
 
-        Task: Return a mathematical formula for {target_variable} using these variables: {', '.join(input_variables)}
+        Task: Return {count} candidate mathematical formulas to predict {target_variable} using: {', '.join(input_variables)}
         
         Requirements:
-        1. Use arithmetic (+, -, *, /) and NumPy functions (np.exp, np.log, np.sin).
-        2. Output MUST be a single line.
-        3. No text or markdown around the formula.
-        
-        Examples: 
-        (Adj_Close * 0.5) + (Volume / 1e6)
-        np.exp(Adj_Close / 100) * np.sin(Volume)
+        1. Mix variables nonlinearly: (A * B), (A / B), np.log(A) * B, etc.
+        2. Output MUST be exactly {count} lines.
+        3. Use ONLY standard math and NumPy (np.exp, np.log, np.sin, np.cos).
 
-        Formula for {target_variable}: [/INST]"""
+        Candidates for {target_variable}: [/INST]"""
         
         try:
             response = self.client.generate(model=self.model, prompt=prompt)
             raw = response['response'].strip()
             
-            # Basic cleanup in case the model ignored instructions
-            lines = [line.strip() for line in raw.split("\n") if line.strip() and ("(" in line or "np." in line or any(v in line for v in input_variables))]
-            if not lines:
-                return " + ".join(input_variables) # Minimal fallback
+            lines = [line.strip() for line in raw.split("\n") if line.strip()]
             
-            # Take the longest line that looks like a formula
-            formula = max(lines, key=len)
-            return formula.replace("```python", "").replace("```", "").strip()
+            refusal_phrases = ["cannot assist", "i am sorry", "legal", "financial advice", "disclaimer", "as an ai"]
+            
+            cleaned = []
+            for line in lines:
+                c = line.replace("```python", "").replace("```", "").strip()
+                # Filter out refusals
+                if any(phrase in c.lower() for phrase in refusal_phrases):
+                    continue
+                # Ensure it looks like a formula (contains at least one variable)
+                if not any(v in c for v in input_variables):
+                    continue
+                    
+                # Remove leading numbers/bullets
+                if ". " in c[:4]: c = c.split(". ", 1)[1]
+                if "- " in c[:3]: c = c.split("- ", 1)[1]
+                cleaned.append(c)
+                
+            return cleaned[:count]
         except Exception as e:
             logger.error(f"Ollama call failed: {e}")
-            # Fallback to a simple linear combination if AI fails
-            return " + ".join(input_variables)
+            return [" + ".join(input_variables)]
 
     def optimize_discovered_function(self, formula: str, data: Dict[str, Any]) -> str:
         """

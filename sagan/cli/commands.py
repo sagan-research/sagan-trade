@@ -31,7 +31,15 @@ def train(
     typer.echo(f"Training symbolic ensemble for {tickers}...")
     typer.echo(f"Performance Profile: {profile.upper()}")
     
-    model_id = train_ens(tickers, signals=signals, target_r2=r2_target, period=f"{years}y", profile=profile)
+    # Handle comma-separated signals in a single string if provided via CLI
+    final_signals = []
+    if signals:
+        for s in signals:
+            final_signals.extend([x.strip() for x in s.split(",")])
+    else:
+        final_signals = None
+
+    model_id = train_ens(tickers, signals=final_signals, target_r2=r2_target, period=f"{years}y", profile=profile)
     typer.secho(f"OK Training complete. Model ID: {model_id}", fg=typer.colors.GREEN)
 
 @app.command()
