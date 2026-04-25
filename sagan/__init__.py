@@ -1,7 +1,7 @@
 """Sagan – Symbolic Mathematical Engine for Trading.
 
 Sagan replaces black-box neural networks with transparent, human-readable 
-mathematical equations discovered via FunctionGemma (via Ollama). 
+mathematations discovered via FunctionGemma (via Ollama). 
 Targeting R2 > 0.95 for all variables to ensure precision.
 
 Quick start::
@@ -24,9 +24,9 @@ try:
     try:
         __version__ = version("sagan")
     except PackageNotFoundError:
-        __version__ = "0.1.1"  # fallback for editable/dev installs
+        __version__ = "0.4.0"  # fallback for editable/dev installs
 except ImportError:
-    __version__ = "0.1.1"
+    __version__ = "0.4.0"
 
 from sagan.config import config, SaganConfig
 from sagan.ensemble import SymbolicRegressor, train
@@ -41,6 +41,10 @@ from sagan.exceptions import (
 from sagan.logging_config import setup_logging
 from sagan.predict import predict, batch_predict
 from sagan.registry import list_models, delete_model, export_model, get_model
+from sagan.research import BacktestEngine
+from sagan.autonomous import AutonomousResearcher
+from sagan.nlp import SaganInterpreter, CopilotOrchestrator
+from sagan.portfolio import PortfolioRebalancer, import_portfolio, get_snaptrade_holdings
 from sagan.utils import (
     sharpe_ratio,
     max_drawdown,
@@ -81,6 +85,14 @@ __all__ = [
     "FetchError",
     "ConfigurationError",
     "RegistryCorruptedError",
+    # Research & Autonomy
+    "BacktestEngine",
+    "AutonomousResearcher",
+    "SaganInterpreter",
+    "CopilotOrchestrator",
+    "PortfolioRebalancer",
+    "import_portfolio",
+    "get_snaptrade_holdings",
     # Version
     "__version__",
 ]

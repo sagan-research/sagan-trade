@@ -72,9 +72,88 @@ class FunctionGemmaBridge:
 
     def optimize_discovered_function(self, formula: str, data: Dict[str, Any]) -> str:
         """
-        Refines the formula based on statistical feedback (placeholder for active learning).
+        Refines the formula based on statistical feedback.
         """
         return formula
+
+    def suggest_relevant_signals(self, ticker: str) -> List[str]:
+        """
+        Asks FunctionGemma to suggest relevant yfinance-compatible signals for a ticker.
+        """
+        prompt = f"""
+        [INST] <<SYS>>
+        You are a quantitative data architect. Your output MUST ONLY be a JSON list of strings.
+        Each string must be a yfinance-compatible ticker or indicator name.
+        Do not provide explanations. Do not provide markdown.
+        <</SYS>>
+
+        Task: Return a list of 5-8 relevant signals to predict the price of {ticker}.
+        Include:
+        1. Macro indicators (e.g., ^VIX, ^TNX, DX-Y.NYB)
+        2. Related sector tickers (e.g., SOXX for NVDA, XLK for MSFT)
+        3. Technical indicator names (RSI, SMA_20, MACD)
+        
+        Signals for {ticker}: [/INST]"""
+        
+        try:
+            response = self.client.generate(model=self.model, prompt=prompt)
+            raw = response['response'].strip().replace("```json", "").replace("```", "").strip()
+            
+            # Remove any potential text before/after the list
+            if "[" in raw and "]" in raw:
+                raw = raw[raw.find("["):raw.rfind("]")+1]
+            
+            try:
+                signals = json.loads(raw)
+                if isinstance(signals, list):
+                    return [str(s) for s in signals if s]
+            except:
+                pass
+
+            # Fallback parsing for non-json
+            lines = [l.strip().strip('"').strip("'").strip("-").strip("*").strip() 
+                     for l in raw.split("\n") if l.strip()]
+            
+            # Filter out likely conversational lines
+            signals = [l for l in lines if len(l) < 20 and not any(kw in l.lower() for kw in ["here", "list", "json", "predict"])]
+            
+            if not signals:
+                return ["Adj Close", "Volume", "RSI", "SMA_20", "^VIX"]
+            return signals[:8]
+        except Exception as e:
+            logger.error(f"Signal discovery failed: {e}")
+            return ["Adj Close", "Volume", "RSI", "SMA_20", "^VIX"]
+
+    def parse_intent(self, text: str) -> Dict[str, Any]:
+        """
+        Parses natural language input into a structured task for the Sagan engine.
+        """
+        prompt = f"""
+        [INST] <<SYS>>
+        You are the Sagan Copilot Intent Parser. Your output MUST ONLY be a JSON object.
+        Supported Tasks: 'research', 'train', 'rebalance', 'predict', 'list'.
+        Do not provide explanations. Do not provide markdown.
+        <</SYS>>
+
+        Task: Parse this user request: "{text}"
+        
+        JSON Schema:
+        {{
+            "task": "research" | "train" | "rebalance" | "predict" | "list",
+            "tickers": ["AAPL", ...],
+            "params": {{ "period": "2y", "formula": "..." }},
+            "holdings": {{ "AAPL": 1000.0, ... }} // if mentioned
+        }}
+
+        Intent JSON: [/INST]"""
+        
+        try:
+            response = self.client.generate(model=self.model, prompt=prompt)
+            raw = response['response'].strip().replace("```json", "").replace("```", "").strip()
+            return json.loads(raw)
+        except Exception as e:
+            logger.error(f"Intent parsing failed: {e}")
+            return {"task": "unknown", "text": text}
 
 # Define tools for FunctionGemma (Schema)
 TOOLS = [

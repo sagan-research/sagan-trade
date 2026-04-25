@@ -22,7 +22,6 @@ app = typer.Typer(help="Sagan XAI – Quantitative Trading Signal Library")
 def train(
     tickers: List[str] = typer.Argument(..., help="Tickers to train on"),
     signals: Optional[List[str]] = typer.Option(None, "--signals", "-s", help="Signals to include (e.g. Open, High, Volume)"),
-    r2_target: float = typer.Option(0.95, "--r2", help="Target R2 for each variable fit"),
     years: int = typer.Option(1, "--years", help="Years of data to fetch"),
     profile: str = typer.Option("balanced", "--profile", help="Performance profile (eco, balanced, turbo)"),
 ):
@@ -39,19 +38,18 @@ def train(
     else:
         final_signals = None
 
-    model_id = train_ens(tickers, signals=final_signals, target_r2=r2_target, period=f"{years}y", profile=profile)
+    model_id = train_ens(tickers, signals=final_signals, period=f"{years}y", profile=profile)
     typer.secho(f"OK Training complete. Model ID: {model_id}", fg=typer.colors.GREEN)
 
 @app.command()
 def train_portfolio(
     tickers: str = typer.Argument(..., help="Comma-separated tickers"),
-    r2_target: float = typer.Option(0.95, "--r2", help="Target R2"),
     profile: str = typer.Option("balanced", "--profile", help="Performance profile"),
 ):
     """Develop independent mathematical foundations for a portfolio."""
     ticker_list = [t.strip() for t in tickers.split(",")]
     typer.echo(f"Developing Portfolio Foundations for {ticker_list}...")
-    mids = train_parallel(ticker_list, target_r2=r2_target, profile=profile)
+    mids = train_parallel(ticker_list, profile=profile)
     typer.secho(f"OK Portfolio ready. Registered IDs: {list(mids.values())}", fg=typer.colors.GREEN)
 
 @app.command()
@@ -132,6 +130,54 @@ def list_models_cmd():
         print("No models trained yet.")
     else:
         print(df.to_string(index=False))
+
+@app.command()
+def research(
+    ticker: str = typer.Argument(..., help="Ticker to research"),
+    formula: str = typer.Option("(Close / RSI) * Volume", "--formula", "-f", help="Symbolic formula to backtest"),
+    period: str = typer.Option("2y", "--period", help="Historical period (1y, 2y, 5y)"),
+):
+    """Run a symbolic backtest research on a custom formula."""
+    from sagan.research import BacktestEngine
+    
+    typer.echo(f"Running Symbolic Research for {ticker}...")
+    typer.echo(f"Formula: {formula}")
+    
+    engine = BacktestEngine(ticker, formula, period=period)
+    results = engine.run()
+    
+    if results["status"] == "success":
+        typer.secho("\n--- Research Results ---", fg=typer.colors.CYAN, bold=True)
+        typer.echo(f"Total Return: {results['total_return']:.2%}")
+        typer.echo(f"B&H Return:   {results['bh_return']:.2%}")
+        typer.echo(f"Sharpe Ratio: {results['sharpe']:.2f}")
+        typer.echo(f"Max Drawdown: {results['max_drawdown']:.2%}")
+        typer.echo(f"Win Rate:     {results['win_rate']:.2%}")
+    else:
+        typer.secho(f"\nError: {results['message']}", fg=typer.colors.RED)
+
+@app.command()
+def auto(
+    ticker: str = typer.Argument(..., help="Ticker for autonomous research"),
+    period: str = typer.Option("2y", "--period", help="Historical period"),
+):
+    """Run the end-to-end autonomous research pipeline."""
+    from sagan.autonomous import AutonomousResearcher
+    
+    typer.secho(f"Launching Autonomous Alpha Discovery for {ticker}...", fg=typer.colors.CYAN, bold=True)
+    
+    researcher = AutonomousResearcher()
+    results = researcher.run_full_pipeline(ticker, period=period)
+    
+    if results["status"] == "success":
+        typer.secho("\n--- Discovery Complete ---", fg=typer.colors.GREEN, bold=True)
+        typer.echo(f"Formula: {results['formula']}")
+        typer.echo(f"Backtest Return: {results['backtest']['total_return']:.2%}")
+        typer.echo(f"Sharpe Ratio:    {results['backtest']['sharpe']:.2f}")
+        typer.echo("\n--- Positioning Advice ---")
+        typer.secho(results["advice"], fg=typer.colors.YELLOW)
+    else:
+        typer.secho(f"\nError: {results.get('message', 'Unknown error')}", fg=typer.colors.RED)
 
 @app.command()
 def metrics():

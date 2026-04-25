@@ -38,7 +38,7 @@ with st.sidebar:
     st.caption("Symbolic Mathematical Engines")
     st.divider()
     
-    page = st.radio("Navigation", ["Symbolic Hub", "Symbolic Studio", "Portfolio Studio", "Simulation Lab", "Whitepaper"])
+    page = st.radio("Navigation", ["Symbolic Hub", "Symbolic Studio", "Portfolio Studio", "Autonomous Studio", "Symbolic R&D", "Sagan Copilot", "Whitepaper"])
     
     st.divider()
     st.subheader("⚡ Power Hub")
@@ -151,11 +151,156 @@ elif page == "Portfolio Studio":
             df = sim.run_simulation()
             st.line_chart(df.set_index("Date"))
 
-elif page == "Simulation Lab":
-    st.title("🧪 Simulation Lab")
-    st.info("High-fidelity backtesting of symbolic strategies.")
-    # Legacy logic or new unified backtest
-    st.write("Select a portfolio model to run institutional-grade battery tests.")
+elif page == "Autonomous Studio":
+    st.title("🤖 Autonomous Alpha Discovery")
+    st.write("End-to-End Alpha Pipeline: Discovery -> Optimization -> Backtest -> Advice.")
+    
+    ticker_auto = st.text_input("Target Ticker", "NVDA")
+    
+    if st.button("Launch Autonomous Research", type="primary"):
+        with st.status("Initializing Autonomous Researcher...") as status:
+            from sagan.autonomous import AutonomousResearcher
+            researcher = AutonomousResearcher()
+            
+            status.update(label="Consulting FunctionGemma for signal discovery...")
+            results = researcher.run_full_pipeline(ticker_auto)
+            
+            st.session_state.auto_results = results
+            status.update(label="Research Complete!", state="complete")
+
+    if 'auto_results' in st.session_state:
+        res = st.session_state.auto_results
+        
+        st.divider()
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.subheader("Positioning Advice")
+            st.info(res["advice"])
+            
+            st.subheader("Discovered Formula")
+            st.code(res["formula"])
+            
+            st.subheader("Fitted Signals")
+            st.write(", ".join(res["signals"]))
+
+        with col2:
+            st.subheader("Backtest Performance")
+            bt = res["backtest"]
+            c1, c2 = st.columns(2)
+            c1.metric("Return", f"{bt['total_return']:.2%}")
+            c2.metric("Sharpe", f"{bt['sharpe']:.2f}")
+            
+            # Mini chart
+            df_bt = pd.DataFrame({"Date": bt["dates"], "Equity": bt["equity_curve"]})
+            st.line_chart(df_bt.set_index("Date"))
+
+elif page == "Symbolic R&D":
+    st.title("🧪 Symbolic Strategy R&D")
+    st.write("The 'Middle Ground' between flexible LLMs and rigid backtesting.")
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        ticker_rd = st.text_input("Research Ticker", "AAPL")
+        formula_input = st.text_area("Custom Formula (Python/NumPy)", 
+                                     "(Close / RSI) * Volume", 
+                                     help="Variables: Close, Volume, RSI, SMA_20, Open, High, Low")
+        period_rd = st.selectbox("Backtest Period", ["1y", "2y", "5y", "10y"], index=1)
+        
+        btn_run = st.button("Run Research Backtest", type="primary")
+        btn_refine = st.button("Iterate with FunctionGemma")
+
+    if btn_run or 'rd_results' in st.session_state:
+        if btn_run:
+            from sagan.research import BacktestEngine
+            with st.spinner("Executing Symbolic Backtest..."):
+                engine = BacktestEngine(ticker_rd, formula_input, period=period_rd)
+                results = engine.run()
+                st.session_state.rd_results = results
+        
+        results = st.session_state.rd_results
+        
+        if results["status"] == "success":
+            with col2:
+                st.subheader("Performance Metrics")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Return", f"{results['total_return']:.2%}", delta=f"{results['total_return'] - results['bh_return']:.2%} vs B&H")
+                c2.metric("Sharpe", f"{results['sharpe']:.2f}")
+                c3.metric("MaxDD", f"{results['max_drawdown']:.2%}")
+                
+                st.metric("Win Rate", f"{results['win_rate']:.2%}")
+            
+            st.divider()
+            st.subheader("Equity Curve (Strategy vs Benchmark)")
+            df_plot = pd.DataFrame({
+                "Date": results["dates"],
+                "Strategy": results["equity_curve"],
+                "Buy & Hold": results["bh_curve"]
+            })
+            st.line_chart(df_plot.set_index("Date"))
+            
+            st.subheader("Explainable Decomposition")
+            from sagan.models.math_engine import MathematicalEngine
+            m_engine = MathematicalEngine()
+            components = m_engine.explain_formula(results["formula"])
+            st.write("Formula split into additive components:")
+            for comp in components:
+                st.code(comp)
+        else:
+            st.error(f"Backtest Error: {results.get('message')}")
+
+    if btn_refine:
+        if 'rd_results' not in st.session_state:
+            st.error("Run a backtest first to provide context for refinement!")
+        else:
+            from sagan.research import StrategyRefiner
+            with st.spinner("Consulting FunctionGemma..."):
+                refiner = StrategyRefiner()
+                new_formula = refiner.refine(formula_input, st.session_state.rd_results)
+                st.success("FunctionGemma suggested a new formula!")
+                st.code(new_formula)
+                st.info("Copy this formula back into the input to re-run research.")
+
+elif page == "Sagan Copilot":
+    st.title("🎙️ Sagan Copilot")
+    st.write("Control the symbolic engine using natural language.")
+    
+    # Simple Chat interface
+    if "messages" not in st.session_state:
+        st.session_state.messages = [{"role": "assistant", "content": "How can I help you with your symbolic research today?"}]
+
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    if prompt := st.chat_input("Ask Sagan..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Interpreting intent..."):
+                from sagan.nlp import CopilotOrchestrator
+                orchestrator = CopilotOrchestrator()
+                response = orchestrator.execute_query(prompt)
+                
+                if "status" in response and response["status"] == "success":
+                    if "advice" in response: # Research task
+                        msg_out = f"**Research Complete for {response['ticker']}**\n\n"
+                        msg_out += f"Formula: `{response['formula']}`\n\n"
+                        msg_out += f"**Advice:** {response['advice']}"
+                    elif "plan" in response: # Rebalance task
+                        msg_out = "**Rebalancing Plan Generated:**\n\n"
+                        for trade in response["plan"]["trades"]:
+                            msg_out += f"- {trade['action']} {trade['ticker']}: ${trade['amount']:,.2f}\n"
+                    else:
+                        msg_out = "Task executed successfully."
+                else:
+                    msg_out = f"Error: {response.get('message', 'Unknown error')}"
+                
+                st.markdown(msg_out)
+                st.session_state.messages.append({"role": "assistant", "content": msg_out})
 
 elif page == "Whitepaper":
     st.title("📝 Whitepaper: SymbolicBasis")

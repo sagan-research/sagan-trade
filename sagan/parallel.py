@@ -8,12 +8,11 @@ logger = logging.getLogger("sagan.parallel")
 
 def train_parallel(
     tickers: List[str],
-    target_r2: float = 0.95,
     profile: str = "balanced",
     **kwargs
 ) -> dict:
     """High-throughput multi-stock trainer utilizing the Symbolic Engine."""
-    engine = PortfolioSymbolicEngine(tickers, target_r2=target_r2, profile=profile)
+    engine = PortfolioSymbolicEngine(tickers, profile=profile)
     results = engine.train_all()
     mids = engine.save_all()
     return mids

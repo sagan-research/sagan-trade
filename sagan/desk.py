@@ -13,6 +13,7 @@ class AlphaDesk:
     """
     Coordinated Trading Desk that manages multiple symbolic models
     and applies statistical execution logic.
+    Optimized for high-fidelity Vanilla Symbolic execution.
     """
     def __init__(self, model_ids: List[str], mode: str = "coordinated"):
         self.model_ids = model_ids
@@ -29,13 +30,14 @@ class AlphaDesk:
                 _, _, _, _, metadata = load_ensemble(mid)
                 ticker = metadata["tickers"][0]
                 self.models[ticker] = metadata
+                # Default thresholds (overwritten by optimize_thresholds)
                 self.thresholds[ticker] = {"buy": 1.0, "sell": -1.0} 
             except Exception as e:
                 logger.error(f"Desk: Failed to load model {mid}: {e}")
 
     def optimize_thresholds(self, training_data: Dict[str, pd.DataFrame]):
         """
-        Statistical method to determine optimal Buy/Sell levels.
+        Statistical method to determine optimal Buy/Sell levels based on formula variance.
         """
         for ticker, data in training_data.items():
             if ticker not in self.models: continue
@@ -59,6 +61,7 @@ class AlphaDesk:
                 outputs = np.array(outputs)
                 mu, sigma = np.mean(outputs), np.std(outputs)
                 
+                # Set statistical buy/sell triggers at 1.2 standard deviations
                 self.thresholds[ticker] = {
                     "buy": mu + (1.2 * sigma),
                     "sell": mu - (1.2 * sigma),
@@ -68,7 +71,13 @@ class AlphaDesk:
                 logger.error(f"Desk: Threshold optimization failed for {ticker}: {e}")
 
     def coordinate_signals(self, current_data: Dict[str, Dict[str, float]]) -> Dict[str, float]:
+        """
+        Main execution logic: evaluates symbolic formulas for each asset
+        and aggregates into a portfolio decision.
+        """
         signals = {}
+        
+        # Vanilla Symbolic Evaluation
         for ticker, meta in self.models.items():
             if ticker not in current_data: continue
             
@@ -78,9 +87,10 @@ class AlphaDesk:
             
             try:
                 clean_formula = formula.replace("^", "**")
+                # Direct deterministic evaluation
                 raw_signal = eval(clean_formula, {"__builtins__": {}}, val_context)
                 
-                thresh = self.thresholds[ticker]
+                thresh = self.thresholds.get(ticker, {"buy": 1.0, "sell": -1.0})
                 if raw_signal > thresh["buy"]: signals[ticker] = 1.0
                 elif raw_signal < thresh["sell"]: signals[ticker] = -1.0
                 else: signals[ticker] = 0.0
@@ -91,14 +101,15 @@ class AlphaDesk:
         if self.mode == "long_only":
             signals = {t: max(0, s) for t, s in signals.items()}
         elif self.mode == "market_neutral":
-            # Zero-sum scaling: (Longs - Shorts) should be balanced
             net_val = sum(signals.values())
             if len(signals) > 0:
                 adj = net_val / len(signals)
                 signals = {t: s - adj for t, s in signals.items()}
 
+        # Institutional Exposure Capping (Vanilla default: 2.5x)
         total_exposure = sum(abs(s) for s in signals.values())
-        max_exp = 3.0 if self.mode == "turbo" else 2.5
+        max_exp = 2.5
+        
         if total_exposure > max_exp:
             scale = max_exp / total_exposure
             signals = {t: s * scale for t, s in signals.items()}

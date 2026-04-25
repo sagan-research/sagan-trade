@@ -71,7 +71,6 @@ import sagan
 model_id = sagan.train(
     ["AAPL"], 
     signals=["Close", "Volume", "RSI"], 
-    target_r2=0.95,
     profile="turbo"
 )
 
@@ -88,7 +87,7 @@ print(result["formula"])    # e.g. "(Close * 0.5) + log(Volume)"
 sagan vars AAPL
 
 # Train symbolic model
-sagan train AAPL --signals Close,Volume --r2 0.95 --profile turbo
+sagan train AAPL --signals Close,Volume --profile turbo
 
 # Get Trading Signal
 sagan predict

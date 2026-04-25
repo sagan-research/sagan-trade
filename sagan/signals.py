@@ -57,10 +57,22 @@ def fetch_signal_data(ticker_symbol: str, signal_names: list[str], period: str =
         rs = gain / loss
         data["RSI"] = 100 - (100 / (1 + rs))
     
-    # For info signals...
-    info = ticker.info
+    # Handle external tickers (e.g. macro indicators like ^VIX)
     for s in signal_names:
-        if s in info and s not in history.columns and s not in data.columns:
-            data[s] = info[s]
+        if s not in data.columns and s not in ["SMA_20", "RSI"]:
+            try:
+                # Check if it's a known info signal first
+                if s in info:
+                    data[s] = info[s]
+                else:
+                    # Try fetching as a separate ticker
+                    logger.info(f"Fetching external signal '{s}'...")
+                    ext_ticker = yf.Ticker(s)
+                    ext_history = ext_ticker.history(period=period, auto_adjust=False)
+                    if not ext_history.empty:
+                        # Join on index to ensure alignment
+                        data[s] = ext_history["Close"]
+            except Exception as e:
+                logger.warning(f"Could not fetch external signal {s}: {e}")
             
     return data.ffill().dropna()

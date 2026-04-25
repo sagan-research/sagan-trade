@@ -22,12 +22,10 @@ class SymbolicRegressor:
         self,
         tickers: List[str],
         signals: List[str] = None,
-        target_r2: float = 0.95,
         period: str = "1y",
         profile: str = "balanced",
     ):
         self.tickers = tickers
-        self.target_r2 = target_r2
         self.period = period
         self.signals = signals or ["Open", "High", "Low", "Adj Close", "Volume"]
         self.scaler = StandardScaler()
@@ -61,7 +59,7 @@ class SymbolicRegressor:
         
         with ProcessPoolExecutor(max_workers=worker_count) as executor:
             futures = [
-                executor.submit(fit_signal_worker, data[s].values, s, self.target_r2)
+                executor.submit(fit_signal_worker, data[s].values, s)
                 for s in self.signals
             ]
             
@@ -86,17 +84,25 @@ class SymbolicRegressor:
         candidates = self.llm.suggest_candidates("Adj_Close_Trend", self.signals, count=5)
         
         # Add robust default nonlinear forms
-        s1, s2 = self.signals[0], self.signals[1]
-        candidates.extend([
-            f"({s1} * {s2})",
-            f"np.log(np.abs({s1}) + 1) * {s2}",
-            f"({s1} / (np.abs({s2}) + 1))",
-            f"np.sin({s1}) * np.exp({s2} / np.max(np.abs({s2})))",
-            f"({s1} ** 2) - ({s2} ** 2)",
-            f"np.sqrt(np.abs({s1})) + np.sqrt(np.abs({s2}))",
-            f"({s1} + {s2}) / 2", # Simple average
-            f"({s1} * 0.7) + ({s2} * 0.3)" # Weighted linear
-        ])
+        if len(self.signals) >= 2:
+            s1, s2 = self.signals[0], self.signals[1]
+            candidates.extend([
+                f"({s1} * {s2})",
+                f"np.log(np.abs({s1}) + 1) * {s2}",
+                f"({s1} / (np.abs({s2}) + 1))",
+                f"np.sin({s1}) * np.exp({s2} / np.max(np.abs({s2})))",
+                f"({s1} ** 2) - ({s2} ** 2)",
+                f"np.sqrt(np.abs({s1})) + np.sqrt(np.abs({s2}))",
+                f"({s1} + {s2}) / 2", # Simple average
+                f"({s1} * 0.7) + ({s2} * 0.3)" # Weighted linear
+            ])
+        elif len(self.signals) == 1:
+            s1 = self.signals[0]
+            candidates.extend([
+                f"np.log(np.abs({s1}) + 1)",
+                f"np.sin({s1})",
+                f"({s1} ** 2)"
+            ])
         
         # Select the best one based on validation R2
         engine = MathematicalEngine()
