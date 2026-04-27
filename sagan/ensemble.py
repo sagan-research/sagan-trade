@@ -149,28 +149,49 @@ class PortfolioSymbolicEngine:
 
     def train_all(self, progress_callback: Any = None):
         """
-        Trains all tickers in the portfolio independently.
+        Trains all tickers in the portfolio in parallel.
+        Uses process-level concurrency for maximum throughput.
         """
         n = len(self.tickers)
-        for i, (t, reg) in enumerate(self.regressors.items()):
-            logger.info(f"Training Portfolio Component: {t}")
+        worker_count = self.regressors[self.tickers[0]].resource_manager.get_worker_count()
+        
+        # Parallelize across tickers
+        logger.info(f"Parallellizing portfolio training across {worker_count} tickers...")
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            # Pass only the necessary data to the worker to avoid pickling complex objects
+            future_to_ticker = {
+                executor.submit(_train_ticker_worker_static, t, self.kwargs): t 
+                for t in self.tickers
+            }
             
-            # Simple wrapper for per-ticker progress
-            def sub_callback(p):
-                if progress_callback:
-                    # Map 0-1 of subtask to i/n -> (i+1)/n of total
-                    total_p = (i + p) / n
-                    progress_callback(total_p)
-            
-            self.results[t] = reg.train(progress_callback=sub_callback)
-            
+            for i, future in enumerate(future_to_ticker):
+                ticker = future_to_ticker[future]
+                try:
+                    self.results[ticker] = future.result()
+                    # Re-initialize the local regressor's state with the result if needed
+                    self.regressors[ticker].meta = self.results[ticker]
+                    if progress_callback:
+                        progress_callback((i + 1) / n)
+                except Exception as e:
+                    logger.error(f"Portfolio: Training failed for {ticker}: {e}")
+                    
         return self.results
 
     def save_all(self) -> dict:
         return {t: reg.save() for t, reg in self.regressors.items()}
 
+def _train_ticker_worker_static(ticker: str, kwargs: dict):
+    """Static worker function to avoid pickling self."""
+    # Ensure logging is configured in the child process if needed
+    reg = SymbolicRegressor([ticker], **kwargs)
+    return reg.train()
+
 def train(tickers: List[str], **kwargs) -> str:
-    """Primary entry point for training."""
-    regressor = SymbolicRegressor(tickers, **kwargs)
+    """Primary entry point for training. Handles arbitrary kwargs by filtering."""
+    # Filter kwargs for SymbolicRegressor
+    valid_keys = {"signals", "period", "profile"}
+    reg_kwargs = {k: v for k, v in kwargs.items() if k in valid_keys}
+    
+    regressor = SymbolicRegressor(tickers, **reg_kwargs)
     regressor.train()
     return regressor.save()

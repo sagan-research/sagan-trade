@@ -3,6 +3,14 @@
 import tensorflow as tf
 from tensorflow.keras import layers, Model
 
+# Enable mixed precision for better compute efficiency on modern hardware
+try:
+    policy = tf.keras.mixed_precision.Policy('mixed_float16')
+    tf.keras.mixed_precision.set_global_policy(policy)
+    print(f"TFT: Mixed precision enabled (Policy: {policy.name})")
+except:
+    pass
+
 
 @tf.keras.utils.register_keras_serializable(package="sagan")
 class VariableSelectionNetwork(layers.Layer):

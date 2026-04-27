@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] – 2026-04-27
+
+### Added
+- **5-Layer Direct LSTM**: High-performance neural architecture for direct signal prediction, benchmarked against symbolic priors.
+- **Kaggle Model Integration**: Automated model synchronization using the `kaggle` CLI for `pretrained_controller_expanded.pth` and `centered_model.pkl`.
+- **Specialized Basis Functions**: Integrated `CenteredModelBasis` and `ControllerEngine` into the `MathematicalEngine` fitting pipeline.
+- **Dependency Expansion**: Added `torch` and `kaggle` to the core dependency stack.
+
 ## [0.3.1] – 2026-04-23
 
 ### Added

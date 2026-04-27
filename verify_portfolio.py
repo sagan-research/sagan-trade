@@ -1,32 +1,30 @@
 import sagan
-import time
-from sagan.ensemble import PortfolioSymbolicEngine
-from sagan.models.allocator import PortfolioAllocator
+import pandas as pd
+import numpy as np
+from sagan.parallel import train_parallel
+from sagan.desk import AlphaDesk, run_research_backtest
 
-def test_portfolio_flow():
-    tickers = ["AAPL", "TSLA"]
-    print(f"Testing Portfolio Flow for {tickers}...")
+def verify_portfolio_stack():
+    tickers = ["MSFT", "GOOGL"]
+    print(f"Starting Portfolio Stack Verification for {tickers}...")
     
-    # 1. Independent fitting
-    engine = PortfolioSymbolicEngine(tickers, signals=["Close", "Volume"], target_r2=0.90)
-    print("Training independent foundations...")
-    results = engine.train_all()
-    mids = engine.save_all()
-    print(f"Saved models: {mids}")
+    # 1. Parallel Training
+    model_ids = train_parallel(tickers, profile="turbo")
+    print(f"Models trained: {model_ids}")
     
-    # 2. Allocation
-    print("Running ML Weight Allocation...")
-    allocator = PortfolioAllocator(mids)
-    weights = allocator.allocate_weights()
-    print(f"Allocated Weights: {weights}")
+    # 2. Backtest with Vectorized Desk
+    m_list = list(model_ids.values())
+    print(f"Running backtest with models: {m_list}")
+    results = run_research_backtest(tickers, m_list, years=1)
     
-    for t, w in weights.items():
-        print(f"Target Portfolio Weight for {t}: {w:.1%}")
+    if results:
+        print("\n--- Portfolio Results ---")
+        print(f"Strategy Annual Return: {results['strategy']['annual_return']:.2%}")
+        print(f"Benchmark Annual Return: {results['benchmark']['annual_return']:.2%}")
+        print(f"Alpha: {results['stats']['alpha']:.2%}")
+        print(f"T-Stat: {results['stats']['t_stat']:.4f} (P-value: {results['stats']['p_value']:.4f})")
+    else:
+        print("Backtest failed or returned no results.")
 
 if __name__ == "__main__":
-    try:
-        test_portfolio_flow()
-    except Exception as e:
-        print(f"Portfolio Flow failed: {e}")
-        import traceback
-        traceback.print_exc()
+    verify_portfolio_stack()

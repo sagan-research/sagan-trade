@@ -12,7 +12,7 @@ class FunctionGemmaBridge:
     
     def __init__(self, model: str = "functiongemma", host: str = "http://localhost:11434"):
         self.model = model
-        self.client = ollama.Client(host=host)
+        self.client = ollama.Client(host=host, timeout=120)
 
     def suggest_composite_function(self, target_variable: str, input_variables: List[str]) -> str:
         """
@@ -27,20 +27,10 @@ class FunctionGemmaBridge:
         Asks FunctionGemma to suggest multiple candidate mathematical expressions.
         """
         prompt = f"""
-        [INST] <<SYS>>
-        You are a symbolic regression engine. Your output MUST ONLY be a list of {count} valid Python/NumPy mathematical expressions, one per line. 
-        Focus on nonlinear interactions like multiplication, division, log, and exp.
-        Do not provide explanations. Do not provide markdown.
-        <</SYS>>
-
-        Task: Return {count} candidate mathematical formulas to predict {target_variable} using: {', '.join(input_variables)}
+        User: You are a symbolic regression engine. Return exactly {count} valid Python/NumPy mathematical expressions to predict {target_variable} using these variables: {', '.join(input_variables)}.
+        Output ONLY the expressions, one per line. Use np.exp, np.log, np.sin, np.cos for nonlinear interactions.
         
-        Requirements:
-        1. Mix variables nonlinearly: (A * B), (A / B), np.log(A) * B, etc.
-        2. Output MUST be exactly {count} lines.
-        3. Use ONLY standard math and NumPy (np.exp, np.log, np.sin, np.cos).
-
-        Candidates for {target_variable}: [/INST]"""
+        Assistant:"""
         
         try:
             response = self.client.generate(model=self.model, prompt=prompt)

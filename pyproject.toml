@@ -7,8 +7,8 @@ build-backend = "setuptools.build_meta"
 # ---------------------------------------------------------------------------
 [project]
 name = "sagan-trade"
-version = "0.4.0"
-description = "Strategic High-Throughput Symbolic Trading Engine with iterative R2 fitting and FunctionGemma discovery."
+version = "0.5.0"
+description = "Strategic High-Throughput Symbolic Trading Engine with iterative R2 fitting, FunctionGemma discovery, and specialized LSTM controllers."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -46,6 +46,11 @@ dependencies = [
     "snaptrade-python-sdk",
     "schedule",
     "requests",
+    "huggingface_hub",
+    "transformers",
+    "datasets",
+    "torch",
+    "kaggle",
 ]
 
 [project.optional-dependencies]

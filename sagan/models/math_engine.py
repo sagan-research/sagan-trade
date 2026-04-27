@@ -1,10 +1,13 @@
+import logging
+import numba
+import torch
+import pickle
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
 from sklearn.metrics import r2_score
-import logging
-import numba
-from typing import Dict, List
+from typing import Dict, List, Optional
+from sagan.models.controller_arch import ControllerLSTM
 
 logger = logging.getLogger("sagan.math")
 
@@ -36,6 +39,63 @@ def fit_signal_worker(y, signal_name):
     func, params, r2, std_err = engine.fit_variable(y)
     return signal_name, {"func": func, "params": params, "r2": r2, "std_err": std_err}
 
+
+class CenteredModelBasis:
+    """
+    Specialized basis function using the pre-trained centered model expression.
+    """
+    def __init__(self, pkl_path: str):
+        self.pkl_path = pkl_path
+        self.expression = None
+        self.mean = 0.0
+        self.std = 1.0
+        self._load()
+
+    def _load(self):
+        try:
+            with open(self.pkl_path, 'rb') as f:
+                data = pickle.load(f)
+            self.expression = data.get('expression')
+            self.mean = data.get('y_mean_c', 0.0)
+            self.std = data.get('y_std_c', 1.0)
+            logger.info(f"CenteredModel: Loaded expression '{self.expression}'")
+        except Exception as e:
+            logger.error(f"CenteredModel: Failed to load: {e}")
+
+    def evaluate(self, t: np.ndarray) -> np.ndarray:
+        if not self.expression: return np.zeros_like(t)
+        # Expression is like "-2*t_sym - 19.25"
+        # We replace t_sym with t
+        t_sym = t
+        try:
+            # Safely evaluate
+            clean_expr = self.expression.replace("t_sym", "t_sym_val")
+            val = eval(clean_expr, {"__builtins__": {}}, {"t_sym_val": t})
+            # Denormalize if needed? The user said "figuring out the math behind the prices"
+            # Usually these models output normalized values
+            return val * self.std + self.mean
+        except Exception as e:
+            logger.error(f"CenteredModel: Eval failed: {e}")
+            return np.zeros_like(t)
+
+class ControllerEngine:
+    """
+    Wrapper for the 3-layer LSTM Controller.
+    """
+    def __init__(self, pth_path: str):
+        self.model = ControllerLSTM()
+        try:
+            self.model.load_state_dict(torch.load(pth_path, map_location='cpu'))
+            self.model.eval()
+            logger.info("ControllerEngine: Loaded pre-trained LSTM.")
+        except Exception as e:
+            logger.error(f"ControllerEngine: Failed to load: {e}")
+
+    def score_sequence(self, tokens: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            logits, _ = self.model(tokens)
+            return logits
+
 class MathematicalEngine:
     """
     Library of basis functions and iterative fitting logic.
@@ -49,9 +109,10 @@ class MathematicalEngine:
     def fourier(t, *params):
         return fourier_kernel(t, np.array(params))
 
-    def fit_variable(self, y: np.ndarray, max_complexity: int = 20):
+    def fit_variable(self, y: np.ndarray, max_complexity: int = 20, use_specialized: bool = True):
         """
         Iteratively tries to fit y using increasing complexity and returns the best fit + standard error.
+        Now includes specialized pre-trained models.
         """
         t = np.arange(len(y))
         mean_y, std_y = np.mean(y), np.std(y) + 1e-8
@@ -62,11 +123,30 @@ class MathematicalEngine:
         best_popt = None
         best_y_pred = None
         
+        # Pre-calculate variance for R2 speedup
+        var_y = np.var(y_norm)
+        if var_y == 0: var_y = 1e-8
+
+        # 0. Specialized Models (If requested)
+        if use_specialized:
+            from sagan.symbolic_lib.download_models import CENTERED_MODEL_PATH
+            if CENTERED_MODEL_PATH.exists():
+                cm = CenteredModelBasis(str(CENTERED_MODEL_PATH))
+                y_pred = cm.evaluate(t)
+                # Normalize y_pred to compare R2
+                y_pred_norm = (y_pred - np.mean(y_pred)) / (np.std(y_pred) + 1e-8)
+                r2 = 1 - np.mean((y_norm - y_pred_norm)**2) / var_y
+                if r2 > best_r2:
+                    best_r2 = r2
+                    best_func = "centered_model"
+                    best_popt = [cm.pkl_path]
+                    best_y_pred = y_pred_norm
+
         # 1. Try Polynomials
         for degree in range(1, 10):
             coeffs = np.polyfit(t, y_norm, degree)
             y_pred = np.polyval(coeffs, t)
-            r2 = r2_score(y_norm, y_pred)
+            r2 = 1 - np.mean((y_norm - y_pred)**2) / var_y
             if r2 > best_r2:
                 best_r2 = r2
                 best_func = "polynomial"
@@ -74,12 +154,12 @@ class MathematicalEngine:
                 best_y_pred = y_pred
             
         # 2. Try Fourier Series
-        for n_harmonics in range(1, 6):
+        for n_harmonics in range(1, 4):
             initial_guess = [0.0] + [0.1, 0.1, 0.05] * n_harmonics
             try:
-                popt, _ = curve_fit(self.fourier, t, y_norm, p0=initial_guess, maxfev=2000)
+                popt, _ = curve_fit(self.fourier, t, y_norm, p0=initial_guess, maxfev=1000)
                 y_pred = self.fourier(t, *popt)
-                r2 = r2_score(y_norm, y_pred)
+                r2 = 1 - np.mean((y_norm - y_pred)**2) / var_y
                 if r2 > best_r2:
                     best_r2 = r2
                     best_func = "fourier"
@@ -95,7 +175,7 @@ class MathematicalEngine:
         else:
             std_err = 1.0
 
-        return best_func, best_popt, best_r2, float(std_err)
+        return best_func, best_popt, float(best_r2), float(std_err)
 
     @staticmethod
     def evaluate(func_name: str, t: np.ndarray, params: list):
@@ -103,6 +183,9 @@ class MathematicalEngine:
             return polynomial_kernel(t, np.array(params))
         elif func_name == "fourier":
             return fourier_kernel(t, np.array(params))
+        elif func_name == "centered_model":
+            cm = CenteredModelBasis(params[0])
+            return cm.evaluate(t)
         return np.zeros_like(t)
 
     def find_best_composition(self, train_data: pd.DataFrame, val_data: pd.DataFrame, target_col: str, candidates: list[str]) -> tuple[str, float]:
@@ -112,28 +195,19 @@ class MathematicalEngine:
         best_r2 = -np.inf
         best_formula = candidates[0] if candidates else " + ".join(train_data.columns)
         
-        # Ensure we have np in context for eval
         eval_context = {"np": np, "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos}
         
         for formula in candidates:
             try:
-                # 1. Sanitize keys for eval
                 sanitized_cols = {col.replace(" ", "_").replace("^", "_IDX_"): col for col in train_data.columns}
                 
-                # 2. Evaluate on training data to check validity
                 train_context = {s_col: train_data[orig_col].values for s_col, orig_col in sanitized_cols.items()}
                 train_context.update(eval_context)
                 
-                # Basic cleanup
-                clean_formula = formula.replace("^", "**") # For powers
-                # Now replace variables in formula with sanitized versions
+                clean_formula = formula.replace("^", "**")
                 for s_col, orig_col in sanitized_cols.items():
-                    # We use a regex or simple replace if we're careful. 
-                    # For candidate formulas from LLM, they might already use ^VIX.
-                    # We need to replace '^VIX' with '_IDX_VIX'
                     clean_formula = clean_formula.replace(orig_col, s_col)
                 
-                # 3. Evaluate on validation data for OOS performance
                 val_context = {s_col: val_data[orig_col].values for s_col, orig_col in sanitized_cols.items()}
                 val_context.update(eval_context)
                 
@@ -155,44 +229,44 @@ class MathematicalEngine:
     def evaluate_formula(self, formula: str, data_context: Dict[str, np.ndarray]) -> np.ndarray:
         """
         Safely evaluates a symbolic formula using the provided data context.
+        Vectorized for high performance on arrays.
         """
-        # Sanitize keys for eval
         sanitized_context = {k.replace(" ", "_").replace("^", "_IDX_"): v for k, v in data_context.items()}
         sanitized_context.update({
             "np": np, 
-            "exp": np.exp, 
-            "log": np.log, 
-            "sin": np.sin, 
-            "cos": np.cos,
-            "abs": np.abs,
-            "sqrt": np.sqrt
+            "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos,
+            "abs": np.abs, "sqrt": np.sqrt, "max": np.max, "min": np.min
         })
         
-        # We need to handle '^' as power vs '^' as indicator prefix
-        # First, temporarily replace '^' in indicators to something unique
         clean_formula = formula
         for k in data_context.keys():
-            if "^" in k:
-                clean_formula = clean_formula.replace(k, k.replace("^", "_IDX_"))
-            if " " in k:
-                clean_formula = clean_formula.replace(k, k.replace(" ", "_"))
+            if "^" in k or " " in k:
+                clean_formula = clean_formula.replace(k, k.replace("^", "_IDX_").replace(" ", "_"))
         
-        # Now handle power operators (if any left that aren't part of names)
         clean_formula = clean_formula.replace("^", "**")
                 
-        return eval(clean_formula, {"__builtins__": {}}, sanitized_context)
+        return eval(clean_formula, sanitized_context)
+
+    def evaluate_ensemble(self, formula: str, fitted_signals: Dict[str, dict], data: pd.DataFrame) -> np.ndarray:
+        """
+        Evaluates a composite formula by first evaluating all basis functions (fitted signals) 
+        vectorized over the entire dataframe.
+        """
+        t = np.arange(len(data))
+        eval_context = {s: self.evaluate(f["func"], t, f["params"]) for s, f in fitted_signals.items()}
+        return self.evaluate_formula(formula, eval_context)
 
     def explain_formula(self, formula: str) -> List[str]:
         """
         Attempts to break down a formula into logical additive components for visualization.
-        Example: "(Close * 0.5) + log(Volume)" -> ["(Close * 0.5)", "log(Volume)"]
         """
-        # Very naive split on ' + ' and ' - ' (not considering parentheses depth, but good for simple formulas)
-        # In a real system, we'd use an AST parser.
         import re
-        # This is a placeholder for a more robust AST-based splitter
         components = re.split(r' \+ | \- ', formula)
         return [c.strip() for c in components if c.strip()]
+
+def soft_gating(x, weights):
+    exp_w = np.exp(weights - np.max(weights))
+    return exp_w / np.sum(exp_w)
 
 def soft_gating(x, weights):
     exp_w = np.exp(weights - np.max(weights))

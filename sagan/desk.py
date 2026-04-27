@@ -38,7 +38,9 @@ class AlphaDesk:
     def optimize_thresholds(self, training_data: Dict[str, pd.DataFrame]):
         """
         Statistical method to determine optimal Buy/Sell levels based on formula variance.
+        Vectorized for high performance.
         """
+        engine = MathematicalEngine()
         for ticker, data in training_data.items():
             if ticker not in self.models: continue
             
@@ -46,20 +48,12 @@ class AlphaDesk:
             formula = meta["composite_formula"]
             fitted = meta["fitted_signals"]
             
-            t = np.arange(len(data))
-            eval_context = {s: MathematicalEngine.evaluate(f["func"], t, f["params"]) for s, f in fitted.items()}
-            eval_context.update({"np": np, "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos})
-            
             try:
-                clean_formula = formula.replace("^", "**")
-                outputs = []
-                for i in range(len(data)):
-                    ctx = {s: eval_context[s][i] for s in fitted}
-                    ctx.update({"np": np, "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos})
-                    outputs.append(eval(clean_formula, {"__builtins__": {}}, ctx))
+                # Fully vectorized evaluation over the entire training set
+                outputs = engine.evaluate_ensemble(formula, fitted, data)
                 
-                outputs = np.array(outputs)
-                mu, sigma = np.mean(outputs), np.std(outputs)
+                mu, sigma = np.nanmean(outputs), np.nanstd(outputs)
+                if sigma == 0: sigma = 1e-8
                 
                 # Set statistical buy/sell triggers at 1.2 standard deviations
                 self.thresholds[ticker] = {
@@ -67,6 +61,7 @@ class AlphaDesk:
                     "sell": mu - (1.2 * sigma),
                     "mean": mu, "std": sigma
                 }
+                logger.info(f"Desk: Optimized thresholds for {ticker}: {mu:.4f} +/- 1.2*{sigma:.4f}")
             except Exception as e:
                 logger.error(f"Desk: Threshold optimization failed for {ticker}: {e}")
 
@@ -76,24 +71,32 @@ class AlphaDesk:
         and aggregates into a portfolio decision.
         """
         signals = {}
+        engine = MathematicalEngine()
         
         # Vanilla Symbolic Evaluation
         for ticker, meta in self.models.items():
             if ticker not in current_data: continue
             
             formula = meta["composite_formula"]
-            val_context = current_data[ticker]
-            val_context.update({"np": np, "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos})
+            # data_context contains scalars or arrays (for batch processing)
+            data_context = current_data[ticker]
             
             try:
-                clean_formula = formula.replace("^", "**")
-                # Direct deterministic evaluation
-                raw_signal = eval(clean_formula, {"__builtins__": {}}, val_context)
+                # evaluate_formula is vectorized and handles np/scalars gracefully
+                raw_signal = engine.evaluate_formula(formula, data_context)
                 
                 thresh = self.thresholds.get(ticker, {"buy": 1.0, "sell": -1.0})
-                if raw_signal > thresh["buy"]: signals[ticker] = 1.0
-                elif raw_signal < thresh["sell"]: signals[ticker] = -1.0
-                else: signals[ticker] = 0.0
+                
+                # If raw_signal is an array (batch), this handles it; if scalar, it works too
+                if isinstance(raw_signal, np.ndarray):
+                    sig = np.zeros_like(raw_signal)
+                    sig[raw_signal > thresh["buy"]] = 1.0
+                    sig[raw_signal < thresh["sell"]] = -1.0
+                    signals[ticker] = sig
+                else:
+                    if raw_signal > thresh["buy"]: signals[ticker] = 1.0
+                    elif raw_signal < thresh["sell"]: signals[ticker] = -1.0
+                    else: signals[ticker] = 0.0
             except:
                 signals[ticker] = 0.0
                 
