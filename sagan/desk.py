@@ -4,7 +4,7 @@ import pandas as pd
 from scipy import stats
 from typing import List, Dict, Any
 from sagan.registry import load_ensemble
-from sagan.models.math_engine import MathematicalEngine
+from sagan.models.math_engine import MathematicalEngine, TimeVariableEvaluator
 from sagan.utils import sharpe_ratio, max_drawdown, annualised_return, win_rate
 
 logger = logging.getLogger("sagan.desk")
@@ -83,7 +83,20 @@ class AlphaDesk:
             
             try:
                 # evaluate_formula is vectorized and handles np/scalars gracefully
-                raw_signal = engine.evaluate_formula(formula, data_context)
+                if meta.get("model_type") == "time_variable":
+                    # For TVMM, we need the historical context
+                    # This assumes current_data[ticker] has a 'sequence' key
+                    tve = meta.get("evaluator")
+                    if not tve:
+                        tve = TimeVariableEvaluator(meta["model_path"], meta["signals"], len(meta["signals"]))
+                        meta["evaluator"] = tve
+                    
+                    x_seq = current_data[ticker]["sequence"]
+                    x_curr = current_data[ticker]["current"]
+                    raw_signal, formula = tve.predict(x_seq, x_curr)
+                    logger.debug(f"TVMM Formula for {ticker}: {formula}")
+                else:
+                    raw_signal = engine.evaluate_formula(formula, data_context)
                 
                 thresh = self.thresholds.get(ticker, {"buy": 1.0, "sell": -1.0})
                 
@@ -97,7 +110,8 @@ class AlphaDesk:
                     if raw_signal > thresh["buy"]: signals[ticker] = 1.0
                     elif raw_signal < thresh["sell"]: signals[ticker] = -1.0
                     else: signals[ticker] = 0.0
-            except:
+            except Exception as e:
+                logger.error(f"Desk: Signal eval failed for {ticker}: {e}")
                 signals[ticker] = 0.0
                 
         # Apply Mode-specific logic

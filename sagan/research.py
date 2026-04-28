@@ -35,6 +35,7 @@ class BacktestEngine:
                 data["Close"] = data["Adj Close"]
             
             # 2. Evaluate the formula
+            data["time_index"] = np.linspace(0, 1, len(data))
             eval_context = {col.replace(" ", "_"): data[col].values for col in data.columns}
             eval_context.update({
                 "np": np, 
@@ -48,6 +49,10 @@ class BacktestEngine:
             
             # Clean formula (replace ^ with **)
             clean_formula = self.formula.replace("^", "**")
+            # Replace 't' with 'time_index' for consistency
+            if " t " in f" {clean_formula} ":
+                clean_formula = clean_formula.replace(" t ", " time_index ")
+            
             # Replace spaces in variable names in formula if any (e.g. 'Adj Close' -> 'Adj_Close')
             for col in data.columns:
                 if " " in col:

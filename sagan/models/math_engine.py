@@ -186,6 +186,10 @@ class MathematicalEngine:
         elif func_name == "centered_model":
             cm = CenteredModelBasis(params[0])
             return cm.evaluate(t)
+        elif func_name == "time_variable":
+            # params[0] would be the path to the TVMM state_dict
+            # This is a placeholder for actual integration in predicting loops
+            return np.zeros_like(t) 
         return np.zeros_like(t)
 
     def find_best_composition(self, train_data: pd.DataFrame, val_data: pd.DataFrame, target_col: str, candidates: list[str]) -> tuple[str, float]:
@@ -271,3 +275,26 @@ def soft_gating(x, weights):
 def soft_gating(x, weights):
     exp_w = np.exp(weights - np.max(weights))
     return exp_w / np.sum(exp_w)
+
+class TimeVariableEvaluator:
+    """
+    Handles real-time inference for LSTM-driven math models.
+    """
+    def __init__(self, model_path: str, feature_names: List[str], input_size: int):
+        from sagan.models.tv_math import TimeVariableMathModel
+        self.model = TimeVariableMathModel(input_size=input_size, feature_names=feature_names)
+        try:
+            self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
+            self.model.eval()
+            logger.info(f"TVEvaluator: Loaded model from {model_path}")
+        except Exception as e:
+            logger.error(f"TVEvaluator: Load failed: {e}")
+
+    def predict(self, x_seq: np.ndarray, x_curr: np.ndarray):
+        with torch.no_grad():
+            t_seq = torch.tensor(x_seq, dtype=torch.float32).unsqueeze(0)
+            t_curr = torch.tensor(x_curr, dtype=torch.float32).unsqueeze(0)
+            pred, weights, bias = self.model(t_seq, t_curr)
+            
+            formula = self.model.explain(weights[0], bias[0])
+            return pred.item(), formula

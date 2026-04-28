@@ -22,11 +22,11 @@ try:
     from importlib.metadata import version, PackageNotFoundError
 
     try:
-        __version__ = version("sagan")
+        __version__ = version("sagan-trade")
     except PackageNotFoundError:
-        __version__ = "0.4.0"  # fallback for editable/dev installs
+        __version__ = "0.7.5"  # fallback for editable/dev installs
 except ImportError:
-    __version__ = "0.4.0"
+    __version__ = "0.7.5"
 
 from sagan.config import config, SaganConfig
 from sagan.ensemble import SymbolicRegressor, train
@@ -44,7 +44,13 @@ from sagan.registry import list_models, delete_model, export_model, get_model
 from sagan.research import BacktestEngine
 from sagan.autonomous import AutonomousResearcher
 from sagan.nlp import SaganInterpreter, CopilotOrchestrator
-from sagan.portfolio import PortfolioRebalancer, import_portfolio, get_snaptrade_holdings
+from sagan.portfolio import (
+    PortfolioRebalancer, 
+    import_portfolio, 
+    get_snaptrade_holdings,
+    AsymmetricRiskEngine,
+    RiskEngine
+)
 from sagan.utils import (
     sharpe_ratio,
     max_drawdown,
@@ -61,6 +67,10 @@ __all__ = [
     "batch_predict",
     # Symbolic Engine
     "SymbolicRegressor",
+    # Risk & Portfolio
+    "AsymmetricRiskEngine",
+    "RiskEngine",
+    "PortfolioRebalancer",
     # Registry
     "list_models",
     "delete_model",
@@ -90,7 +100,6 @@ __all__ = [
     "AutonomousResearcher",
     "SaganInterpreter",
     "CopilotOrchestrator",
-    "PortfolioRebalancer",
     "import_portfolio",
     "get_snaptrade_holdings",
     # Version

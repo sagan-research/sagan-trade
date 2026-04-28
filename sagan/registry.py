@@ -31,7 +31,7 @@ import tensorflow as tf
 
 from sagan.config import config
 from sagan.exceptions import ModelNotFoundError, RegistryCorruptedError
-from sagan.models.tft import VariableSelectionNetwork, TemporalFusionBlock
+# TFT completely removed
 
 __all__ = [
     "save_model",
@@ -140,17 +140,12 @@ def load_ensemble(model_id: str):
         with open(model_dir / "model_hold.json", "r") as f:
             model_hold = json.load(f)
     else:
-        # Legacy Keras loading
+        # Legacy Keras loading (TFT-PINN removed)
         import tensorflow as tf
-        from sagan.models.tft import VariableSelectionNetwork, TemporalFusionBlock
-        custom_objects = {
-            "VariableSelectionNetwork": VariableSelectionNetwork,
-            "TemporalFusionBlock": TemporalFusionBlock,
-        }
-        with tf.keras.utils.custom_object_scope(custom_objects):
-            model_buy = tf.keras.models.load_model(str(model_dir / "model_buy.h5"), compile=False, safe_mode=False)
-            model_sell = tf.keras.models.load_model(str(model_dir / "model_sell.h5"), compile=False, safe_mode=False)
-            model_hold = tf.keras.models.load_model(str(model_dir / "model_hold.h5"), compile=False, safe_mode=False)
+        model_buy = tf.keras.models.load_model(str(model_dir / "model_buy.h5"), compile=False, safe_mode=False)
+        model_sell = tf.keras.models.load_model(str(model_dir / "model_sell.h5"), compile=False, safe_mode=False)
+        model_hold = tf.keras.models.load_model(str(model_dir / "model_hold.h5"), compile=False, safe_mode=False)
+
 
     with open(model_dir / "scaler.pkl", "rb") as f:
         scaler = pickle.load(f)
