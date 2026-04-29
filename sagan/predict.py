@@ -60,16 +60,21 @@ def predict(model_id: str = None, compliance: bool = False) -> PredictionResult:
         available_signals.append(s)
 
     # 2. Evaluate composite formula
-    eval_context = {s: signal_values[s] for s in available_signals}
-    # Add numpy functions to context
-    eval_context.update({"np": np, "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos})
+    # Sanitize signal names (handle spaces, etc.) for eval
+    sanitized_context = {s.replace(" ", "_").replace("^", "_IDX_"): signal_values[s] for s in available_signals}
+    sanitized_context.update({"np": np, "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos})
     
     try:
-        # Simple cleanup of formula for eval
         clean_formula = formula.replace("^", "**")
-        final_value = eval(clean_formula, {"__builtins__": {}}, eval_context)
+        # Replace original signal names with sanitized ones in the formula
+        for s in available_signals:
+            sanitized_s = s.replace(" ", "_").replace("^", "_IDX_")
+            # Use word boundaries or simple replace if we assume names are distinct
+            clean_formula = clean_formula.replace(s, sanitized_s)
+            
+        final_value = eval(clean_formula, {"__builtins__": {}}, sanitized_context)
     except Exception as e:
-        logger.error(f"Formula evaluation failed: {e}")
+        logger.error(f"Formula evaluation failed for '{formula}': {e}")
         final_value = 0.0
 
     # 3. Derive Simple Signal (Trend-based)

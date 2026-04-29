@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="sagan-trade",
-    version="0.7.5",
+    version="0.8.0",
     author="Sagan Labs",
     author_email="hello@sagan-docs.vercel.app",
     description="Strategic High-Throughput Symbolic Trading Engine with iterative R2 fitting, FunctionGemma discovery, and Asymmetric Convexity risk management.",
@@ -15,6 +15,7 @@ setup(
     packages=find_packages(exclude=["tests*"]),
     python_requires=">=3.9",
     install_requires=[
+        "numba",
         "tensorflow>=2.10",
         "pandas>=1.5",
         "numpy>=1.23",

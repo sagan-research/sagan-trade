@@ -65,7 +65,7 @@ def main():
     for t in tickers:
         print(f"Developing symbolic foundation for {t}...")
         try:
-            mid = sagan.train([t], signals=["Close", "Volume"], target_r2=0.92)
+            mid = sagan.train([t], signals=["Close", "Volume"])
             model_ids.append(mid)
             print(f"  OK: {mid}")
         except Exception as e:

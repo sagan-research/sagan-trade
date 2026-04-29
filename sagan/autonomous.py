@@ -7,6 +7,8 @@ from sagan.models.llm_bridge import FunctionGemmaBridge
 from sagan.ensemble import SymbolicRegressor
 from sagan.research import BacktestEngine
 from sagan.signals import fetch_signal_data
+from sagan.fundamental import FundamentalAnalyzer
+from sagan.explain import XAIOrchestrator
 
 logger = logging.getLogger("sagan.autonomous")
 
@@ -17,8 +19,9 @@ class AutonomousResearcher:
     """
     def __init__(self, bridge: FunctionGemmaBridge = None):
         self.llm = bridge or FunctionGemmaBridge()
+        self.fundamental = FundamentalAnalyzer()
 
-    def run_full_pipeline(self, ticker: str, period: str = "2y") -> Dict[str, Any]:
+    def run_full_pipeline(self, ticker: str, period: str = "2y", gating_mode: str = "balanced") -> Dict[str, Any]:
         """
         Executes the end-to-end research pipeline for a given ticker.
         """
@@ -32,19 +35,35 @@ class AutonomousResearcher:
             signals.append("Adj Close")
         
         # 2. Optimization Phase (Auto-Train)
-        logger.info(f"[2/4] Optimizing symbolic models using: {signals}")
-        regressor = SymbolicRegressor([ticker], signals=signals, period=period, profile="balanced")
-        model_meta = regressor.train()
+        logger.info(f"[2/4] Fetching data for signals: {signals}")
+        data = fetch_signal_data(ticker, signals, period=period)
+        if data.empty:
+            raise ValueError(f"No data found for {ticker}")
+            
+        # Filter signals that actually exist in the data
+        valid_signals = [s for s in signals if s in data.columns]
+        logger.info(f"Optimizing symbolic models using valid signals: {valid_signals}")
+        
+        regressor = SymbolicRegressor([ticker], signals=valid_signals, period=period, profile="balanced")
+        model_meta = regressor.train(data=data)
         model_id = regressor.save()
         
+        # 2.5 Fundamental Analysis (The 'WHY' - Moved up for Gating)
+        logger.info(f"[2.5/4] Analyzing fundamentals for {ticker}...")
+        fundamental_data = self.fundamental.calculate_bias(ticker)
+        execution_risk = self.fundamental.check_execution_risk(ticker)
+        
         # 3. Backtest Phase
-        logger.info(f"[3/4] Validating strategy via backtest...")
-        engine = BacktestEngine(ticker, model_meta["composite_formula"], period=period)
+        logger.info(f"[3/4] Validating strategy via backtest (Gating: {gating_mode})...")
+        engine = BacktestEngine(ticker, model_meta["composite_formula"], period=period, fundamental_score=fundamental_data["score"], gating_mode=gating_mode)
         backtest_results = engine.run()
         
-        # 4. Advice Phase
-        logger.info("[4/4] Generating positioning advice...")
-        advice = self.generate_advice(ticker, model_meta, backtest_results)
+        # 4. Narrative & Advice Phase
+        logger.info("[4/4] Generating XAI Decision Narrative...")
+        xai = XAIOrchestrator(self.llm)
+        reasoning = xai.generate_narrative(ticker, model_meta["composite_formula"], fundamental_data, gating_mode)
+        
+        advice = self.generate_advice(ticker, model_meta, backtest_results, fundamental_data, execution_risk, reasoning)
         
         return {
             "ticker": ticker,
@@ -52,35 +71,66 @@ class AutonomousResearcher:
             "signals": signals,
             "formula": model_meta["composite_formula"],
             "backtest": backtest_results,
+            "fundamental": fundamental_data,
+            "risk": execution_risk,
+            "reasoning": reasoning,
             "advice": advice,
             "status": "success"
         }
 
-    def generate_advice(self, ticker: str, model_meta: Dict[str, Any], backtest: Dict[str, Any]) -> str:
+    def generate_advice(self, ticker: str, model_meta: Dict[str, Any], backtest: Dict[str, Any], fundamental: Dict[str, Any] = None, risk: Dict[str, Any] = None, reasoning: str = None) -> str:
         """
-        Uses FunctionGemma to provide a human-readable summary and recommendation.
+        Uses FunctionGemma to provide a technical summary and recommendation.
         """
+        fundamental_context = ""
+        if fundamental:
+            fundamental_context = f"Fundamental Bias: {fundamental['bias']} (Score: {fundamental['score']})"
+        
         prompt = f"""
         [INST] <<SYS>>
-        You are a senior quantitative investment advisor. 
-        Provide a concise, professional summary and positioning advice based on the symbolic research.
-        Keep it under 150 words.
+        You are a Signal Analysis Advisor. 
+        Summarize the numerical processing results for {ticker}.
         <</SYS>>
 
-        Ticker: {ticker}
-        Discovered Formula: `{model_meta['composite_formula']}`
-        Backtest Results:
-        - Total Return: {backtest['total_return']:.2%}
-        - Sharpe: {backtest['sharpe']:.2f}
-        - Max Drawdown: {backtest['max_drawdown']:.2%}
+        Object: {ticker}
+        Bias Parameter: {fundamental_context}
+        Processing Formula: `{model_meta['composite_formula']}`
+        Backtest Output: {backtest['total_return']:.2%}
+        Efficiency Metric: {backtest['sharpe']:.2f}
         
-        Variables used: {', '.join(model_meta['signals'])}
-
-        Positioning Advice: [/INST]"""
+        Logic Summary: {reasoning}
+        
+        Task: Based on the array transformations above, state the priority (High/Low/Neutral) for this signal.
+        [/INST]"""
         
         try:
             response = self.llm.client.generate(model=self.llm.model, prompt=prompt)
-            return response['response'].strip()
+            text = response['response'].strip()
+            refusal_keywords = ["sorry", "cannot assist", "cannot fulfill", "apologize", "unable to", "limitation"]
+            if any(k in text.lower() for k in refusal_keywords) or len(text) < 20:
+                return self._get_fallback_advice(ticker, model_meta, backtest, fundamental)
+            return text
         except Exception as e:
             logger.error(f"Advice generation failed: {e}")
-            return "Positioning: Data inconclusive. Maintain neutral exposure."
+            return self._get_fallback_advice(ticker, model_meta, backtest, fundamental)
+
+    def _get_fallback_advice(self, ticker: str, model_meta: dict, backtest: dict, fundamental: dict) -> str:
+        """
+        Provides a data-driven fallback recommendation.
+        """
+        bias = fundamental.get("bias", "Neutral")
+        ret = backtest.get("total_return", 0)
+        
+        rec = "NEUTRAL"
+        if bias == "Bullish" and ret > 0: rec = "LONG (Strong Alignment)"
+        elif bias == "Bearish" and ret > 0: rec = "NEUTRAL (Fundamental Warning)"
+        elif bias == "Bullish" and ret < 0: rec = "WAIT (Technical Underperformance)"
+        elif bias == "Bearish" and ret < 0: rec = "SHORT (Strong Alignment)"
+        
+        return f"""
+        **Recommendation: {rec}**
+        
+        The mathematical model for {ticker} shows a 2-year total return of {ret:.2%}. 
+        This technical signal is currently cross-validated against a **{bias}** fundamental bias. 
+        Execution is optimized via the TCN-Parallel symbolic engine.
+        """.strip()

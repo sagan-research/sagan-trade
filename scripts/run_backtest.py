@@ -50,7 +50,7 @@ def run_backtest(ticker: str = "AAPL", years: int = 2):
     # 2. Train Symbolic Model
     print("Training Symbolic Regressor...")
     # We use SymbolicRegressor directly to get the meta
-    reg = SymbolicRegressor(tickers=[ticker], signals=["Close", "Volume"], target_r2=0.92)
+    reg = SymbolicRegressor(tickers=[ticker], signals=["Close", "Volume"])
     meta = reg.train()
     
     formula = meta["composite_formula"]

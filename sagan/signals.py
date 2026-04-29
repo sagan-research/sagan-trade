@@ -35,12 +35,15 @@ def fetch_signal_data(ticker_symbol: str, signal_names: list[str], period: str =
     Fetches the actual data for the selected signals.
     """
     ticker = yf.Ticker(ticker_symbol)
-    history = ticker.history(period=period, auto_adjust=False)
+    history = ticker.history(period=period, auto_adjust=True)
     
-    # If user asked for 'Adj Close' but it's not there (rare), or if it's there as 'Close'
+    # Handle MultiIndex if present
+    if isinstance(history.columns, pd.MultiIndex):
+        history.columns = history.columns.get_level_values(-1)
+    
+    # If user asked for 'Adj Close' but it's not there, map it to 'Close' (auto_adjust=True does this)
     if "Adj Close" in signal_names and "Adj Close" not in history.columns:
         if "Close" in history.columns:
-            logger.info(f"Mapping 'Adj Close' to 'Close' for {ticker_symbol}")
             history["Adj Close"] = history["Close"]
     
     # Extract historical columns
@@ -58,21 +61,27 @@ def fetch_signal_data(ticker_symbol: str, signal_names: list[str], period: str =
         data["RSI"] = 100 - (100 / (1 + rs))
     
     # Handle external tickers (e.g. macro indicators like ^VIX)
+    info = None
     for s in signal_names:
         if s not in data.columns and s not in ["SMA_20", "RSI"]:
             try:
                 # Check if it's a known info signal first
+                if info is None:
+                    info = ticker.info
                 if s in info:
                     data[s] = info[s]
                 else:
                     # Try fetching as a separate ticker
                     logger.info(f"Fetching external signal '{s}'...")
                     ext_ticker = yf.Ticker(s)
-                    ext_history = ext_ticker.history(period=period, auto_adjust=False)
+                    ext_history = ext_ticker.history(period=period, auto_adjust=True)
                     if not ext_history.empty:
-                        # Join on index to ensure alignment
-                        data[s] = ext_history["Close"]
+                        # Reindex external data to match the main data's index (alignment)
+                        # We use ffill to handle minor timestamp differences
+                        ext_series = ext_history["Close"].reindex(data.index, method="ffill")
+                        data[s] = ext_series
             except Exception as e:
                 logger.warning(f"Could not fetch external signal {s}: {e}")
             
+    # Final cleanup: forward fill, then drop only remaining NaNs (e.g. at the very start)
     return data.ffill().dropna()

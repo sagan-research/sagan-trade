@@ -23,7 +23,7 @@ def main():
         print(f"\n--- Running backtest with {name} trading cost ({comm}) ---")
         res = run_research_backtest(tickers, m_list, years=1, commission=comm)
         if res:
-            results[name] = res
+            results[name] = resimpl
         else:
             print(f"Backtest failed for {name}.")
             

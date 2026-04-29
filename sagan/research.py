@@ -12,10 +12,12 @@ class BacktestEngine:
     """
     Evaluates a symbolic formula on historical data and calculates performance metrics.
     """
-    def __init__(self, ticker: str, formula: str, period: str = "2y"):
+    def __init__(self, ticker: str, formula: str, period: str = "2y", fundamental_score: float = 0.0, gating_mode: str = "none"):
         self.ticker = ticker
         self.formula = formula
         self.period = period
+        self.fundamental_score = fundamental_score
+        self.gating_mode = gating_mode
         self.engine = MathematicalEngine()
 
     def run(self) -> Dict[str, Any]:
@@ -60,9 +62,18 @@ class BacktestEngine:
             
             signal_values = eval(clean_formula, {"__builtins__": {}}, eval_context)
             
-            # 3. Generate Trading Signals (LONG if value > 0, else SHORT)
-            # Binary signal: 1 for long, -1 for short
-            signals = np.where(signal_values > 0, 1.0, -1.0)
+            # 3. Generate Trading Signals
+            # Raw technical signal: 1 for long, -1 for short
+            tech_signals = np.where(signal_values > 0, 1.0, -1.0)
+            
+            # Apply Fundamental Gating if requested
+            if self.gating_mode != "none":
+                from sagan.fundamental import FundamentalAnalyzer
+                fa = FundamentalAnalyzer()
+                # Vectorized application of gating
+                signals = np.array([fa.get_hybrid_weight(s, self.fundamental_score, self.gating_mode) for s in tech_signals])
+            else:
+                signals = tech_signals
             
             # 4. Calculate Returns
             # Using daily returns of the asset

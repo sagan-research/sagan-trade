@@ -2,14 +2,13 @@
 
 Sagan replaces black-box neural networks with transparent, human-readable 
 mathematations discovered via FunctionGemma (via Ollama). 
-Targeting R2 > 0.95 for all variables to ensure precision.
 
 Quick start::
 
     import sagan
 
     # Train a new symbolic model
-    model_id = sagan.train(["AAPL"], signals=["Close", "RSI", "Volume"], target_r2=0.95)
+    model_id = sagan.train(["AAPL"], signals=["Close", "RSI", "Volume"])
 
     # Get a trading signal
     result = sagan.predict()

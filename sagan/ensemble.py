@@ -38,18 +38,22 @@ class SymbolicRegressor:
         self.fitted_signals = {}
         self.composite_formula = None
 
-    def train(self, progress_callback: Any = None):
+    def train(self, progress_callback: Any = None, data: pd.DataFrame = None):
         """
         Executes the symbolic training workflow with OS-level optimizations.
         """
         self.resource_manager.apply_optimizations()
         if progress_callback: progress_callback(0.05)
         
-        # 1. Fetch Data
-        ticker = self.tickers[0]
-        data = fetch_signal_data(ticker, self.signals, period=self.period)
-        if data.empty:
-            raise ValueError(f"No data found for {ticker}")
+        # 1. Fetch Data if not provided
+        if data is None:
+            ticker = self.tickers[0]
+            data = fetch_signal_data(ticker, self.signals, period=self.period)
+            if data.empty:
+                raise ValueError(f"No data found for {ticker}")
+        
+        # Ensure self.signals matches data columns
+        self.signals = [s for s in self.signals if s in data.columns]
             
         if progress_callback: progress_callback(0.15)
         
@@ -106,7 +110,8 @@ class SymbolicRegressor:
         
         # Select the best one based on validation R2
         engine = MathematicalEngine()
-        best_formula, best_r2 = engine.find_best_composition(train_data, val_data, ticker, candidates)
+        target_signal = self.signals[0] # Use the primary signal as target
+        best_formula, best_r2 = engine.find_best_composition(train_data, val_data, target_signal, candidates)
         
         self.composite_formula = best_formula
         logger.info(f"Optimal Formula: {self.composite_formula} (Val R2: {best_r2:.4f})")

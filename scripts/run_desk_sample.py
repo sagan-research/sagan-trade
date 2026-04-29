@@ -18,7 +18,7 @@ def main():
     for t in tickers:
         print(f"Training {t}...")
         # Use simple signals for speed in this demo
-        mid = sagan.train([t], signals=["Close", "Volume"], target_r2=0.92)
+        mid = sagan.train([t], signals=["Close", "Volume"])
         model_ids.append(mid)
         print(f"OK: {mid}")
         

@@ -56,7 +56,7 @@ def main():
     for t in tickers:
         print(f"Training Turbo-Variant for {t}...")
         # Use Turbo profile and all advanced signals
-        mid = sagan.train([t], signals=["Close", "Volume", "SMA_20", "RSI"], profile="turbo", target_r2=0.94)
+        mid = sagan.train([t], signals=["Close", "Volume", "SMA_20", "RSI"], profile="turbo")
         model_ids.append(mid)
         print(f"  OK: {mid}")
             

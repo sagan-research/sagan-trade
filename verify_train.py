@@ -8,7 +8,7 @@ try:
     print(f"Stats before: {manager.get_stats()}")
     
     # We use a few more signals to see parallelization in action
-    model_id = sagan.train(["AAPL"], signals=["Close", "Volume", "Open", "High"], target_r2=0.90, profile="turbo")
+    model_id = sagan.train(["AAPL"], signals=["Close", "Volume", "Open", "High"], profile="turbo")
     print(f"Training success: {model_id}")
     
     print(f"Stats after: {manager.get_stats()}")

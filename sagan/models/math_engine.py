@@ -141,9 +141,12 @@ class MathematicalEngine:
                     best_func = "centered_model"
                     best_popt = [cm.pkl_path]
                     best_y_pred = y_pred_norm
+                
+                # Early exit if specialized model is excellent
+                if best_r2 > 0.98: return best_func, best_popt, float(best_r2), 0.01
 
-        # 1. Try Polynomials
-        for degree in range(1, 10):
+        # 1. Try Polynomials (Reduced range for speed, 1-6 instead of 1-9)
+        for degree in range(1, 7):
             coeffs = np.polyfit(t, y_norm, degree)
             y_pred = np.polyval(coeffs, t)
             r2 = 1 - np.mean((y_norm - y_pred)**2) / var_y
@@ -153,20 +156,25 @@ class MathematicalEngine:
                 best_popt = coeffs.tolist()
                 best_y_pred = y_pred
             
-        # 2. Try Fourier Series
-        for n_harmonics in range(1, 4):
-            initial_guess = [0.0] + [0.1, 0.1, 0.05] * n_harmonics
-            try:
-                popt, _ = curve_fit(self.fourier, t, y_norm, p0=initial_guess, maxfev=1000)
-                y_pred = self.fourier(t, *popt)
-                r2 = 1 - np.mean((y_norm - y_pred)**2) / var_y
-                if r2 > best_r2:
-                    best_r2 = r2
-                    best_func = "fourier"
-                    best_popt = popt.tolist()
-                    best_y_pred = y_pred
-            except:
-                pass
+            # Early exit if R2 is high
+            if best_r2 > 0.95: break
+            
+        # 2. Try Fourier Series (Only if needed and R2 is still low)
+        if best_r2 < 0.8:
+            for n_harmonics in range(1, 3): # Reduced harmonics 1-2
+                initial_guess = [0.0] + [0.1, 0.1, 0.05] * n_harmonics
+                try:
+                    popt, _ = curve_fit(self.fourier, t, y_norm, p0=initial_guess, maxfev=500) # Reduced maxfev
+                    y_pred = self.fourier(t, *popt)
+                    r2 = 1 - np.mean((y_norm - y_pred)**2) / var_y
+                    if r2 > best_r2:
+                        best_r2 = r2
+                        best_func = "fourier"
+                        best_popt = popt.tolist()
+                        best_y_pred = y_pred
+                    if best_r2 > 0.95: break
+                except:
+                    pass
 
         # Calculate Standard Error of the Estimate (SEE)
         if best_y_pred is not None:
@@ -194,40 +202,42 @@ class MathematicalEngine:
 
     def find_best_composition(self, train_data: pd.DataFrame, val_data: pd.DataFrame, target_col: str, candidates: list[str]) -> tuple[str, float]:
         """
-        Evaluates several candidate formulas on validation data and returns the best one.
+        Evaluates several candidate formulas on validation data in parallel and returns the best one.
         """
-        best_r2 = -np.inf
-        best_formula = candidates[0] if candidates else " + ".join(train_data.columns)
+        from concurrent.futures import ThreadPoolExecutor
         
-        eval_context = {"np": np, "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos}
+        logger.info(f"Evaluating {len(candidates)} candidates in parallel...")
         
-        for formula in candidates:
+        def _eval_candidate(formula):
             try:
                 sanitized_cols = {col.replace(" ", "_").replace("^", "_IDX_"): col for col in train_data.columns}
-                
-                train_context = {s_col: train_data[orig_col].values for s_col, orig_col in sanitized_cols.items()}
-                train_context.update(eval_context)
-                
                 clean_formula = formula.replace("^", "**")
                 for s_col, orig_col in sanitized_cols.items():
                     clean_formula = clean_formula.replace(orig_col, s_col)
                 
+                # Val Evaluation
                 val_context = {s_col: val_data[orig_col].values for s_col, orig_col in sanitized_cols.items()}
-                val_context.update(eval_context)
+                val_context.update({"np": np, "exp": np.exp, "log": np.log, "sin": np.sin, "cos": np.cos, "abs": np.abs})
                 
                 y_val_pred = eval(clean_formula, {"__builtins__": {}}, val_context)
                 y_val_true = val_data[target_col].values
                 
                 r2 = r2_score(y_val_true, y_val_pred)
-                logger.info(f"Formula: {formula} | Val R2: {r2:.4f}")
-                
-                if r2 > best_r2:
-                    best_r2 = r2
-                    best_formula = formula
-            except Exception as e:
-                logger.debug(f"Failed to evaluate candidate {formula}: {e}")
-                continue
-                
+                return formula, r2
+            except:
+                return formula, -np.inf
+
+        best_r2 = -np.inf
+        best_formula = candidates[0] if candidates else "None"
+        
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(executor.map(_eval_candidate, candidates))
+            
+        for formula, r2 in results:
+            if r2 > best_r2:
+                best_r2 = r2
+                best_formula = formula
+        
         return best_formula, best_r2
 
     def evaluate_formula(self, formula: str, data_context: Dict[str, np.ndarray]) -> np.ndarray:
