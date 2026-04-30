@@ -23,9 +23,9 @@ try:
     try:
         __version__ = version("sagan-trade")
     except PackageNotFoundError:
-        __version__ = "0.7.5"  # fallback for editable/dev installs
+        __version__ = "0.8.1"  # fallback for editable/dev installs
 except ImportError:
-    __version__ = "0.7.5"
+    __version__ = "0.8.1"
 
 from sagan.config import config, SaganConfig
 from sagan.ensemble import SymbolicRegressor, train

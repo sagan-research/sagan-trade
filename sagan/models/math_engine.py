@@ -230,7 +230,12 @@ class MathematicalEngine:
         best_r2 = -np.inf
         best_formula = candidates[0] if candidates else "None"
         
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        from sagan.models.manager import ResourceManager
+        mgr = ResourceManager()
+        max_workers = mgr.get_worker_count()
+        
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             results = list(executor.map(_eval_candidate, candidates))
             
         for formula, r2 in results:

@@ -53,12 +53,17 @@ def fetch_signal_data(ticker_symbol: str, signal_names: list[str], period: str =
     # Add Technical Indicators if requested
     if "SMA_20" in signal_names:
         data["SMA_20"] = history["Close"].rolling(window=20).mean()
-    if "RSI" in signal_names:
+    if "RSI" in signal_names or "rsi" in [s.lower() for s in signal_names]:
         delta = history["Close"].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
         data["RSI"] = 100 - (100 / (1 + rs))
+    if "HMean_50" in signal_names or "HMean 50" in signal_names:
+        # 50-day Rolling Harmonic Mean: k / sum(1/x)
+        # Using pandas rolling mean on reciprocals
+        reciprocals = 1.0 / history["Close"]
+        data["HMean_50"] = 1.0 / reciprocals.rolling(window=50).mean()
     
     # Handle external tickers (e.g. macro indicators like ^VIX)
     info = None

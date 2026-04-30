@@ -12,6 +12,7 @@ from sagan.models.math_engine import MathematicalEngine
 logger = logging.getLogger("sagan.predict")
 
 class PredictionResult(TypedDict):
+    ticker: str
     signal: str
     confidence: float
     probabilities: dict[str, float]
@@ -83,6 +84,7 @@ def predict(model_id: str = None, compliance: bool = False) -> PredictionResult:
     signal = "LONG" if final_value > 0 else "SHORT"
     
     return {
+        "ticker": ticker,
         "signal": signal,
         "confidence": 0.95, # Symbolic models have high 'certainty' in their formula
         "probabilities": {"LONG": 0.5, "SHORT": 0.5, "NEUTRAL": 0.0},

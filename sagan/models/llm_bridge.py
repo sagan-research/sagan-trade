@@ -2,6 +2,7 @@ import ollama
 import json
 import logging
 from typing import List, Dict, Any
+from sagan.config import config
 
 logger = logging.getLogger("sagan.llm")
 
@@ -12,7 +13,26 @@ class FunctionGemmaBridge:
     
     def __init__(self, model: str = "functiongemma", host: str = "http://localhost:11434"):
         self.model = model
+        self.host = host
         self.client = ollama.Client(host=host, timeout=120)
+        self._is_available = None if config.ollama_enabled else False
+
+    def check_availability(self) -> bool:
+        """
+        Pings the Ollama host to check if it is reachable.
+        """
+        if not config.ollama_enabled:
+            self._is_available = False
+            return False
+            
+        import requests
+        try:
+            requests.get(self.host, timeout=2)
+            self._is_available = True
+            return True
+        except:
+            self._is_available = False
+            return False
 
     def suggest_composite_function(self, target_variable: str, input_variables: List[str]) -> str:
         """
@@ -33,6 +53,10 @@ class FunctionGemmaBridge:
         Assistant:"""
         
         try:
+            if self._is_available is False:
+                # Avoid repeated connection attempts if we know it's down
+                return [" + ".join(input_variables)]
+                
             response = self.client.generate(model=self.model, prompt=prompt)
             raw = response['response'].strip()
             
@@ -57,7 +81,13 @@ class FunctionGemmaBridge:
                 
             return cleaned[:count]
         except Exception as e:
-            logger.error(f"Ollama call failed: {e}")
+            if self._is_available is None:
+                self.check_availability()
+            
+            if not self._is_available:
+                logger.warning(f"Ollama is not accessible at {self.host}. Using basic linear fallback.")
+            else:
+                logger.error(f"Ollama call failed: {e}")
             return [" + ".join(input_variables)]
 
     def optimize_discovered_function(self, formula: str, data: Dict[str, Any]) -> str:

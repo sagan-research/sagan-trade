@@ -38,96 +38,108 @@ class SymbolicRegressor:
         self.fitted_signals = {}
         self.composite_formula = None
 
-    def train(self, progress_callback: Any = None, data: pd.DataFrame = None):
+    def train(self, progress_callback: Any = None, data: pd.DataFrame = None, use_llm: bool = True):
         """
         Executes the symbolic training workflow with OS-level optimizations.
         """
-        self.resource_manager.apply_optimizations()
-        if progress_callback: progress_callback(0.05)
-        
-        # 1. Fetch Data if not provided
-        if data is None:
-            ticker = self.tickers[0]
-            data = fetch_signal_data(ticker, self.signals, period=self.period)
-            if data.empty:
-                raise ValueError(f"No data found for {ticker}")
-        
-        # Ensure self.signals matches data columns
-        self.signals = [s for s in self.signals if s in data.columns]
+        from sagan.config import config
+        # Temporarily override config if use_llm is False
+        old_llm_enabled = config.ollama_enabled
+        if not use_llm:
+            config.ollama_enabled = False
+            self.llm._is_available = False
             
-        if progress_callback: progress_callback(0.15)
-        
-        # 2. Parallel Fitting (Max Throughput)
-        worker_count = self.resource_manager.get_worker_count()
-        logger.info(f"Parallellizing fit across {worker_count} workers...")
-        
-        with ProcessPoolExecutor(max_workers=worker_count) as executor:
-            futures = [
-                executor.submit(fit_signal_worker, data[s].values, s)
-                for s in self.signals
-            ]
+        try:
+            self.resource_manager.apply_optimizations()
+            if progress_callback: progress_callback(0.05)
             
-            for i, future in enumerate(futures):
-                try:
-                    s_name, result = future.result()
-                    self.fitted_signals[s_name] = result
-                    if progress_callback:
-                        progress_callback(0.15 + (0.5 * (i+1)/len(futures)))
-                except Exception as e:
-                    logger.error(f"Fitting failed for signal: {e}")
+            # 1. Fetch Data if not provided
+            if data is None:
+                ticker = self.tickers[0]
+                data = fetch_signal_data(ticker, self.signals, period=self.period)
+                if data.empty:
+                    raise ValueError(f"No data found for {ticker}")
+            
+            # Ensure self.signals matches data columns
+            self.signals = [s for s in self.signals if s in data.columns]
+                
+            if progress_callback: progress_callback(0.15)
+            
+            # 2. Parallel Fitting (Max Throughput)
+            worker_count = self.resource_manager.get_worker_count()
+            logger.info(f"Parallellizing fit across {worker_count} workers...")
+            
+            with ProcessPoolExecutor(max_workers=worker_count) as executor:
+                futures = [
+                    executor.submit(fit_signal_worker, data[s].values, s)
+                    for s in self.signals
+                ]
+                
+                for i, future in enumerate(futures):
+                    try:
+                        s_name, result = future.result()
+                        self.fitted_signals[s_name] = result
+                        if progress_callback:
+                            progress_callback(0.15 + (0.5 * (i+1)/len(futures)))
+                    except Exception as e:
+                        logger.error(f"Fitting failed for signal: {e}")
 
-        # 3. Discover Composite Function (Nonlinear Search)
-        logger.info("Discovering optimal nonlinear composition...")
-        
-        # Split data for out-of-sample validation
-        split_idx = int(len(data) * 0.8)
-        train_data = data.iloc[:split_idx]
-        val_data = data.iloc[split_idx:]
-        
-        # Get candidates from LLM
-        candidates = self.llm.suggest_candidates("Adj_Close_Trend", self.signals, count=5)
-        
-        # Add robust default nonlinear forms
-        if len(self.signals) >= 2:
-            s1, s2 = self.signals[0], self.signals[1]
-            candidates.extend([
-                f"({s1} * {s2})",
-                f"np.log(np.abs({s1}) + 1) * {s2}",
-                f"({s1} / (np.abs({s2}) + 1))",
-                f"np.sin({s1}) * np.exp({s2} / np.max(np.abs({s2})))",
-                f"({s1} ** 2) - ({s2} ** 2)",
-                f"np.sqrt(np.abs({s1})) + np.sqrt(np.abs({s2}))",
-                f"({s1} + {s2}) / 2", # Simple average
-                f"({s1} * 0.7) + ({s2} * 0.3)" # Weighted linear
-            ])
-        elif len(self.signals) == 1:
-            s1 = self.signals[0]
-            candidates.extend([
-                f"np.log(np.abs({s1}) + 1)",
-                f"np.sin({s1})",
-                f"({s1} ** 2)"
-            ])
-        
-        # Select the best one based on validation R2
-        engine = MathematicalEngine()
-        target_signal = self.signals[0] # Use the primary signal as target
-        best_formula, best_r2 = engine.find_best_composition(train_data, val_data, target_signal, candidates)
-        
-        self.composite_formula = best_formula
-        logger.info(f"Optimal Formula: {self.composite_formula} (Val R2: {best_r2:.4f})")
-        
-        if progress_callback: progress_callback(0.8)
-        
-        # 4. Finalize Metadata
-        self.meta = {
-            "tickers": self.tickers,
-            "signals": self.signals,
-            "fitted_signals": self.fitted_signals,
-            "composite_formula": self.composite_formula,
-            "val_r2": np.mean([v["r2"] for v in self.fitted_signals.values()]),
-            "created_at": pd.Timestamp.now().isoformat(),
-        }
-        
+            # 3. Discover Composite Function (Nonlinear Search)
+            logger.info("Discovering optimal nonlinear composition...")
+            
+            # Split data for out-of-sample validation
+            split_idx = int(len(data) * 0.8)
+            train_data = data.iloc[:split_idx]
+            val_data = data.iloc[split_idx:]
+            
+            # Get candidates from LLM
+            candidates = self.llm.suggest_candidates("Adj_Close_Trend", self.signals, count=5)
+            
+            # Add robust default nonlinear forms
+            if len(self.signals) >= 2:
+                s1, s2 = self.signals[0], self.signals[1]
+                candidates.extend([
+                    f"({s1} * {s2})",
+                    f"np.log(np.abs({s1}) + 1) * {s2}",
+                    f"({s1} / (np.abs({s2}) + 1))",
+                    f"np.sin({s1}) * np.exp({s2} / np.max(np.abs({s2})))",
+                    f"({s1} ** 2) - ({s2} ** 2)",
+                    f"np.sqrt(np.abs({s1})) + np.sqrt(np.abs({s2}))",
+                    f"({s1} + {s2}) / 2", # Simple average
+                    f"({s1} * 0.7) + ({s2} * 0.3)" # Weighted linear
+                ])
+            elif len(self.signals) == 1:
+                s1 = self.signals[0]
+                candidates.extend([
+                    f"np.log(np.abs({s1}) + 1)",
+                    f"np.sin({s1})",
+                    f"({s1} ** 2)"
+                ])
+            
+            # Select the best one based on validation R2
+            engine = MathematicalEngine()
+            target_signal = self.signals[0] # Use the primary signal as target
+            best_formula, best_r2 = engine.find_best_composition(train_data, val_data, target_signal, candidates)
+            
+            self.composite_formula = best_formula
+            logger.info(f"Optimal Formula: {self.composite_formula} (Val R2: {best_r2:.4f})")
+            
+            if progress_callback: progress_callback(0.8)
+            
+            # 4. Finalize Metadata
+            self.meta = {
+                "tickers": self.tickers,
+                "signals": self.signals,
+                "fitted_signals": self.fitted_signals,
+                "r2_stats": {s: v["r2"] for s, v in self.fitted_signals.items()},
+                "composite_formula": self.composite_formula,
+                "formula": self.composite_formula, # Alias for backward compatibility
+                "val_r2": np.mean([v["r2"] for v in self.fitted_signals.values()]) if self.fitted_signals else 0.0,
+                "created_at": pd.Timestamp.now().isoformat(),
+            }
+        finally:
+            config.ollama_enabled = old_llm_enabled
+            
         return self.meta
 
     def save(self) -> str:

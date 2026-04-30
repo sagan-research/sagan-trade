@@ -15,7 +15,7 @@ PROFILES = {
         "ram_fraction": 0.10,
         "priority": "below_normal",
         "description": "Eco Mode: Low impact, keeps your PC smooth for other work.",
-        "max_workers": 2,
+        "max_workers": 1,
     },
     PerformanceProfile.BALANCED: {
         "ram_fraction": 0.30,
@@ -62,7 +62,7 @@ class ResourceManager:
                 os.nice(priority_map.get(self.profile["priority"], 0))
             logger.info(f"Applied {self.profile['priority']} priority.")
         except Exception as e:
-            logger.warning(f"Could not sets process priority: {e}")
+            logger.info(f"Process priority adjustment skipped: {e}")
 
     def get_worker_count(self) -> int:
         return self.profile["max_workers"]

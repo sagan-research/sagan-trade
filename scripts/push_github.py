@@ -23,9 +23,9 @@ def main():
     pat = os.environ.get('GITHUB_PAT')
     if 'origin' in remotes:
         run('git remote remove origin')
-    run(f'git remote add origin https://That-Tech-Geek:{pat}@github.com/That-Tech-Geek/sagan-trade.git')
+    run(f'git remote add origin https://github.com/sagan-research/sagan-trade.git')
     # Tag version
-    version = "0.3.0"
+    version = "0.8.1"
     tag_name = f"v{version}"
     # Delete existing tag locally/remotely if present
     existing_tags = run('git tag').splitlines()

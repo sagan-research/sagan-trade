@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # ---------------------------------------------------------------------------
 [project]
 name = "sagan-trade"
-version = "0.7.5"
+version = "0.8.1"
 description = "Strategic High-Throughput Symbolic Trading Engine with iterative R2 fitting, FunctionGemma discovery, and Asymmetric Convexity risk management."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -34,6 +34,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "numba",
     "tensorflow>=2.10",
     "pandas>=1.5",
     "numpy>=1.23",
@@ -86,11 +87,11 @@ sagan = "sagan.cli.commands:app"
 sagan-download-models = "sagan.symbolic_lib.download_models:main"
 
 [project.urls]
-Repository     = "https://github.com/That-Tech-Geek/sagan-trade"
+Repository     = "https://github.com/sagan-research/sagan-trade"
 Homepage       = "https://sagan-trade.vercel.app"
 Documentation  = "https://sagan-trade.vercel.app"
-Source         = "https://github.com/That-Tech-Geek/sagan-trade"
-"Bug Tracker"  = "https://github.com/That-Tech-Geek/sagan-trade/issues"
+Source         = "https://github.com/sagan-research/sagan-trade"
+"Bug Tracker"  = "https://github.com/sagan-research/sagan-trade/issues"
 Changelog      = "https://sagan-trade.vercel.app/changelog"
 PyPI           = "https://pypi.org/project/sagan-trade/"
 

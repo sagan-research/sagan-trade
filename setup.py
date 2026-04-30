@@ -5,13 +5,13 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="sagan-trade",
-    version="0.8.0",
+    version="0.8.1",
     author="Sagan Labs",
     author_email="hello@sagan-docs.vercel.app",
     description="Strategic High-Throughput Symbolic Trading Engine with iterative R2 fitting, FunctionGemma discovery, and Asymmetric Convexity risk management.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/That-Tech-Geek/sagan-trade",
+    url="https://github.com/sagan-research/sagan-trade",
     packages=find_packages(exclude=["tests*"]),
     python_requires=">=3.9",
     install_requires=[

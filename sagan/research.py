@@ -24,11 +24,34 @@ class BacktestEngine:
         """
         Runs the backtest and returns a dictionary of metrics and equity curve data.
         """
-        # 1. Fetch common signals to ensure we have enough data context
+        # 1. Fetch common signals + any signals in the formula
         common_signals = ["Close", "Volume", "RSI", "SMA_20", "Open", "High", "Low", "Adj Close"]
         
+        # Improved extraction of likely signals from formula
+        import re
+        tokens = re.findall(r'\b[A-Za-z_][A-Za-z0-9_]*\b', self.formula)
+        
+        # Filter out keywords, math functions, and standard historical parts
+        excluded = [
+            "np", "exp", "log", "sin", "cos", "abs", "sqrt", "t", "time_index", 
+            "max", "min", "mean", "std", "var",
+            "open", "high", "low", "close", "volume", "adj"
+        ]
+        formula_signals = [t for t in tokens if t.lower() not in excluded]
+        
+        # Convert underscores back to spaces for yfinance if it's a known historical signal
+        historical_map = {"Adj_Close": "Adj Close", "Adj_High": "Adj High", "Adj_Low": "Adj Low", "Adj_Open": "Adj Open"}
+        final_signals = []
+        for s in formula_signals:
+            if s in historical_map:
+                final_signals.append(historical_map[s])
+            else:
+                final_signals.append(s)
+        
+        all_signals = list(set(common_signals + final_signals))
+        
         try:
-            data = fetch_signal_data(self.ticker, common_signals, period=self.period)
+            data = fetch_signal_data(self.ticker, all_signals, period=self.period)
             if data.empty:
                 return {"status": "error", "message": "No data found for ticker."}
             
@@ -120,48 +143,3 @@ class BacktestEngine:
         except Exception as e:
             logger.error(f"Backtest failed for {self.ticker}: {e}")
             return {"status": "error", "message": str(e)}
-
-class StrategyRefiner:
-    """
-    Communicates with FunctionGemma to iterate on a strategy based on backtest performance.
-    """
-    def __init__(self, bridge: FunctionGemmaBridge = None):
-        self.bridge = bridge or FunctionGemmaBridge()
-
-    def refine(self, current_formula: str, backtest_results: Dict[str, Any]) -> str:
-        """
-        Asks FunctionGemma to improve the formula based on performance metrics.
-        """
-        if backtest_results["status"] != "success":
-            return current_formula
-
-        prompt = f"""
-        [INST] <<SYS>>
-        You are a quantitative researcher specializing in symbolic regression.
-        Your task is to improve a trading formula based on its backtest performance.
-        Return ONLY the improved Python/NumPy formula. Do not explain.
-        <</SYS>>
-
-        Current Formula: `{current_formula}`
-        Ticker: {backtest_results['ticker']}
-        Performance:
-        - Total Return: {backtest_results['total_return']:.2%}
-        - Sharpe Ratio: {backtest_results['sharpe']:.2f}
-        - Max Drawdown: {backtest_results['max_drawdown']:.2%}
-        - Win Rate: {backtest_results['win_rate']:.2%}
-
-        Task: Suggest a mathematically refined version of this formula.
-        If Sharpe is low (< 1.0), consider adding momentum (SMA_20) or mean-reversion (RSI).
-        If Drawdown is high (> 20%), consider volatility damping or regime filters.
-        Available variables: Close, Volume, RSI, SMA_20, Open, High, Low.
-
-        Improved Formula: [/INST]"""
-        
-        try:
-            # We'll use the bridge's client directly for custom prompt
-            response = self.bridge.client.generate(model=self.bridge.model, prompt=prompt)
-            new_formula = response['response'].strip().replace("```python", "").replace("```", "").strip()
-            return new_formula
-        except Exception as e:
-            logger.error(f"Refinement call failed: {e}")
-            return current_formula

@@ -14,8 +14,12 @@ class PortfolioAllocator:
     Allocates weights to maximize a target metric (default: Sharpe).
     """
     
-    def __init__(self, model_ids: List[str]):
-        self.model_ids = model_ids
+    def __init__(self, model_ids: Any):
+        if isinstance(model_ids, dict):
+            # If a dict is passed (like from port_engine.save_all()), use the values (IDs)
+            self.model_ids = list(model_ids.values())
+        else:
+            self.model_ids = model_ids
         self.weights = None
 
     def allocate_weights(self, target: str = "sharpe") -> Dict[str, float]:

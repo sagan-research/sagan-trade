@@ -38,6 +38,7 @@ class SaganConfig:
     pinn_lambda: float = 0.01
     xai_confidence_threshold: float = 0.6
     regime_change_threshold: float = 0.3
+    ollama_enabled: bool = True
 
     def __post_init__(self) -> None:
         self.home_dir.mkdir(parents=True, exist_ok=True)
@@ -53,6 +54,7 @@ class SaganConfig:
             "SAGAN_DEFAULT_WINDOW": ("default_window", int),
             "SAGAN_DEFAULT_HORIZON": ("default_horizon", int),
             "SAGAN_DEFAULT_EPOCHS": ("default_epochs", int),
+            "SAGAN_OLLAMA_ENABLED": ("ollama_enabled", lambda x: x.lower() == "true"),
         }
         for env_key, (field_name, cast) in _env_map.items():
             val = os.environ.get(env_key)

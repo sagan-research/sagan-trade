@@ -245,7 +245,6 @@ elif page == "Symbolic R&D":
         period_rd = st.selectbox("Backtest Period", ["1y", "2y", "5y", "10y"], index=1)
         
         btn_run = st.button("Run Research Backtest", type="primary")
-        btn_refine = st.button("Iterate with FunctionGemma")
 
     if btn_run or 'rd_results' in st.session_state:
         if btn_run:
@@ -285,18 +284,6 @@ elif page == "Symbolic R&D":
                 st.code(comp)
         else:
             st.error(f"Backtest Error: {results.get('message')}")
-
-    if btn_refine:
-        if 'rd_results' not in st.session_state:
-            st.error("Run a backtest first to provide context for refinement!")
-        else:
-            from sagan.research import StrategyRefiner
-            with st.spinner("Consulting FunctionGemma..."):
-                refiner = StrategyRefiner()
-                new_formula = refiner.refine(formula_input, st.session_state.rd_results)
-                st.success("FunctionGemma suggested a new formula!")
-                st.code(new_formula)
-                st.info("Copy this formula back into the input to re-run research.")
 
 elif page == "Sagan Copilot":
     st.title("🎙️ Sagan Copilot")
