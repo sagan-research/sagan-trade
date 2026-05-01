@@ -22,15 +22,16 @@ class TestPrepareProbabilisticData:
         )
         expected_samples = len(prices) - 1 - window - horizon  # pct_change drops 1 row
         assert X.shape == (expected_samples, window, n_stocks)
-        assert y_probs.shape == (expected_samples, 3)
+        assert y_probs.shape == (expected_samples, 1)
         assert y_ret.shape == (expected_samples,)
         assert len(symbols) == n_stocks
         assert n_stocks == 3
 
-    def test_label_sum_to_one(self):
+    def test_labels_are_binary(self):
         prices = _make_prices()
         _, y_probs, *_ = prepare_probabilistic_data(prices, 10, 3, 0.01)
-        np.testing.assert_allclose(y_probs.sum(axis=1), 1.0, atol=1e-6)
+        # Check that values are only 0 or 1
+        assert np.all((y_probs == 0.0) | (y_probs == 1.0))
 
     def test_dtype_float32(self):
         prices = _make_prices()

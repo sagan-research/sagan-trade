@@ -186,8 +186,8 @@ def prepare_probabilistic_data(
         A tuple ``(X, y_probs, y_ret, symbols, n_stocks)`` where:
 
         - **X** – ``float32`` array of shape ``(N, window, n_stocks)``
-        - **y_probs** – ``float32`` one-hot label array of shape ``(N, 3)``
-          with columns [buy, sell, hold]
+        - **y_probs** – ``float32`` label array of shape ``(N, 1)``
+          where 1.0 indicates a 'buy' signal (return > threshold).
         - **y_ret** – ``float32`` array of shape ``(N,)`` with raw forward returns
         - **symbols** – list of ticker column names
         - **n_stocks** – number of tickers
@@ -219,11 +219,9 @@ def prepare_probabilistic_data(
         )
         y_ret.append(future_ret)
         if future_ret > threshold:
-            y_probs.append([1.0, 0.0, 0.0])
-        elif future_ret < -threshold:
-            y_probs.append([0.0, 1.0, 0.0])
+            y_probs.append([1.0])
         else:
-            y_probs.append([0.0, 0.0, 1.0])
+            y_probs.append([0.0])
 
     return (
         np.array(X, dtype=np.float32),
