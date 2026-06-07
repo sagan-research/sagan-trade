@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sagan MoE High-Frequency Trading Terminal</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="glow-sphere-1"></div>
+    <div class="glow-sphere-2"></div>
+    
+    <div class="terminal-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-logo">🌌</div>
+                <div class="brand-name">
+                    <h1>SAGAN ENGINE</h1>
+                    <span class="sub-brand">MoE Quant Terminal</span>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <h2>SELECT NSE STOCK</h2>
+                <ul class="stock-list" id="stockList">
+                    <!-- Dynamic Stock List Items -->
+                </ul>
+            </div>
+            
+            <div class="system-status">
+                <div class="status-indicator">
+                    <span class="pulse-dot"></span>
+                    <span>QARA Engine Active</span>
+                </div>
+                <div class="latency-stat">Latency: <span id="latencyVal">2 Ticks (10ms)</span></div>
+                <div class="latency-stat">Rebates: <span class="text-green">+1.0 bp</span> / Taker: <span class="text-red">-3.0 bp</span></div>
+            </div>
+        </aside>
+
+        <!-- Main Terminal Dashboard -->
+        <main class="main-dashboard">
+            <!-- Header Panel -->
+            <header class="dashboard-header">
+                <div class="header-title">
+                    <h2 id="activeStockName">RELIANCE INDUSTRIES LTD</h2>
+                    <p id="activeStockDesc">High Liquidity large cap equity backtest results</p>
+                </div>
+                <div class="sagan-math-badge">
+                    <span class="math-expr">S<sub>t+1</sub> = f<sub>MoE</sub>(X<sub>t</sub>) + g<sub>Sym</sub>(X<sub>resid</sub>)</span>
+                </div>
+            </header>
+
+            <!-- Metrics Panel -->
+            <section class="metrics-grid">
+                <div class="metric-card card-glow-cyan">
+                    <div class="metric-info">
+                        <h3>Total Out-of-Sample Return</h3>
+                        <div class="metric-value text-cyan" id="metricReturn">+0.00%</div>
+                    </div>
+                    <div class="metric-icon">📈</div>
+                </div>
+                
+                <div class="metric-card card-glow-purple">
+                    <div class="metric-info">
+                        <h3>Daily Sharpe Ratio</h3>
+                        <div class="metric-value text-purple" id="metricSharpe">0.00</div>
+                    </div>
+                    <div class="metric-icon">⚡</div>
+                </div>
+                
+                <div class="metric-card card-glow-magenta">
+                    <div class="metric-info">
+                        <h3>Maximum Drawdown</h3>
+                        <div class="metric-value text-magenta" id="metricDD">0.00%</div>
+                    </div>
+                    <div class="metric-icon">⚠️</div>
+                </div>
+                
+                <div class="metric-card card-glow-green">
+                    <div class="metric-info">
+                        <h3>Net Fees & Rebates</h3>
+                        <div class="metric-value" id="metricFees">₹0.00</div>
+                    </div>
+                    <div class="metric-icon">💰</div>
+                </div>
+            </section>
+
+            <!-- Main Charts & Details Segment -->
+            <section class="charts-layout">
+                <!-- Main Equity Chart Card -->
+                <div class="chart-card large-card glass-panel">
+                    <div class="card-header">
+                        <h2>Out-of-Sample Equity Curve (₹1 Crore Initial)</h2>
+                        <div class="chart-actions">
+                            <span class="chart-legend-dot bg-purple"></span><span>Equity Value</span>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="equityChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- MoE Expert Gating Weights Card -->
+                <div class="chart-card glass-panel">
+                    <div class="card-header">
+                        <h2>MoE Regime Routing Weight Distribution</h2>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="gatingChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Symbolic Refinement Panel -->
+                <div class="glass-panel equation-panel">
+                    <div class="card-header">
+                        <h2>Sagan Symbolic Refinement Layer</h2>
+                    </div>
+                    <div class="equation-content">
+                        <p class="section-label">SELECTED MICROSTRUCTURE FORMULA</p>
+                        <div class="formula-container" id="symbolicEquation">
+                            g(X<sub>resid</sub>) = c<sub>1</sub> · OFI<sub>t</sub> · σ<sub>t</sub>
+                        </div>
+                        
+                        <div class="formula-meta">
+                            <div class="meta-row">
+                                <span class="label">Formula Identifier:</span>
+                                <span class="val text-cyan" id="symbolicId">OFI_Vol_Pressure</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="label">Optimized Parameters:</span>
+                                <span class="val font-mono" id="symbolicParams">[c1 = 0.0315]</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Spread Prediction Card -->
+                <div class="chart-card glass-panel">
+                    <div class="card-header">
+                        <h2>Actual vs Sagan Predicted Spreads (Zoomed view)</h2>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="spreadChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Transaction Logs Panel -->
+            <section class="trade-log-panel glass-panel">
+                <div class="card-header">
+                    <h2>High-Frequency Execution Log (Last 100 Trades)</h2>
+                    <div class="trade-summary-stats">
+                        <span>Maker Trades: <strong class="text-green" id="makerTradeCount">0</strong></span>
+                        <span class="stat-divider">|</span>
+                        <span>Taker Trades: <strong class="text-red" id="takerTradeCount">0</strong></span>
+                        <span class="stat-divider">|</span>
+                        <span>Slippage Costs: <strong class="text-magenta" id="slippageCostVal">₹0.00</strong></span>
+                    </div>
+                </div>
+                <div class="log-grid-header">
+                    <span>Tick</span>
+                    <span>Order Type</span>
+                    <span>Execution Price</span>
+                    <span>Size (Shares)</span>
+                    <span>Rebate Earned</span>
+                    <span>Taker Fee</span>
+                    <span>Slippage</span>
+                </div>
+                <div class="log-grid-container" id="tradeLogContainer">
+                    <!-- Dynamic Trade Rows -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
