@@ -7,3 +7,4 @@ High Frequency Trading Engine.
 - Update 0.1.2: Improve documentation in models
 - Update 0.1.3: Refactor simulator execution flow
 - Update 0.1.4: Add detailed logging mechanisms
+- Update 0.1.5: Finalise README and public API
