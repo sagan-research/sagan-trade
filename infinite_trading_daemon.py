@@ -16,9 +16,7 @@ INBOX_DIR = r"C:\Users\91891\.gemini\antigravity-ide\scratch\personal-intel\vaul
 
 def is_within_time_window():
     now = datetime.now()
-    if 6 <= now.hour < 11:
-        if now.hour == 6 and now.minute < 10:
-            return False
+    if 22 <= now.hour <= 23 or 0 <= now.hour < 6:
         return True
     return False
 
@@ -232,7 +230,7 @@ def main():
     
     while True:
         if not is_within_time_window():
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Outside operating window (6:10 AM - 11:00 AM). Shutting down.")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Outside operating window (10:00 PM - 6:00 AM). Shutting down.")
             sys.exit(0)
             
         try:

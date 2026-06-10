@@ -142,6 +142,16 @@ class HawkesLOBSimulator:
         if ticker not in self.stock_profiles:
             raise ValueError(f"Ticker {ticker} not found in profiles.")
             
+        # Inject Bates Jump-Diffusion default parameters
+        for tk, p in self.stock_profiles.items():
+            p.setdefault("heston_kappa", 3.0)       # Mean reversion speed of variance
+            p.setdefault("heston_theta", p.get("volatility_annual", 0.15)**2) # Long term variance
+            p.setdefault("heston_sigma_v", 0.2)     # Volatility of variance
+            # Jumps per year
+            p.setdefault("jump_lambda", 250.0 if tk != "MRF" else 50.0) 
+            p.setdefault("jump_mu", 0.0)            # Mean log jump
+            p.setdefault("jump_sigma", 0.015)       # Jump volatility
+
         prof = self.stock_profiles[ticker]
         
         # Unpack parameters
@@ -171,6 +181,7 @@ class HawkesLOBSimulator:
         last_mid = mid
         last_bid_size = base_depth
         last_ask_size = base_depth
+        current_variance = prof["heston_theta"]
         
         for i in range(num_ticks):
             # Time increment (HFT scale, average 100ms - 1000ms based on intensity)
@@ -186,10 +197,30 @@ class HawkesLOBSimulator:
                 # Add excitation impulse
                 current_intensity += alpha
                 
-            # Random walk for mid price
+            # Bates Jump-Diffusion for Mid Price
+            # Convert dt (seconds) to years for standard financial modeling scales
+            dt_year = dt / (252.0 * 6.25 * 3600.0)
+            
+            # 1. Heston Stochastic Volatility update
+            dW_v = np.random.normal(0, np.sqrt(dt_year))
+            dv = prof["heston_kappa"] * (prof["heston_theta"] - current_variance) * dt_year + prof["heston_sigma_v"] * np.sqrt(max(current_variance, 0)) * dW_v
+            current_variance = max(current_variance + dv, 1e-8)
+            
+            # 2. Merton Jump-Diffusion component
+            jump_prob = prof["jump_lambda"] * dt_year
+            has_jump = np.random.uniform(0, 1) < jump_prob
+            jump_size = np.random.normal(prof["jump_mu"], prof["jump_sigma"]) if has_jump else 0.0
+            
+            # 3. Continuous Price Diffusion
+            dW_S = np.random.normal(0, np.sqrt(dt_year))
+            
             # Dynamic drift: mean reverting to base price to keep simulation stable
             drift = -0.0001 * (last_mid - prof["base_price"])
-            mid_change = drift + np.random.normal(0, sigma_step)
+            
+            continuous_change = last_mid * np.sqrt(current_variance) * dW_S
+            jump_change = last_mid * (np.exp(jump_size) - 1.0) if has_jump else 0.0
+            
+            mid_change = drift + continuous_change + jump_change
             current_mid = np.round((last_mid + mid_change) / tick_size) * tick_size
             
             # Bid-Ask spread dynamics: influenced by trade intensity & volatility

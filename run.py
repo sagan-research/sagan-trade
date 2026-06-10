@@ -146,20 +146,39 @@ def evaluate_ouch_orders(df_test: pd.DataFrame, ouch_log_path: str, ticker: str)
     """
     bt = HighFrequencyBacktester()
     
+    def empty_metrics():
+        return {
+            "metrics": {
+                "ticker": ticker,
+                "total_return_pct": 0.0,
+                "sharpe_ratio": 0.0,
+                "sortino_ratio": 0.0,
+                "max_drawdown": 0.0,
+                "win_rate": 0.0,
+                "total_maker_trades": 0,
+                "total_taker_trades": 0,
+                "rebates_earned": 0.0,
+                "fees_paid": 0.0,
+                "net_fees": 0.0,
+                "slippage_losses": 0.0,
+                "final_portfolio_val": 10000000.0
+            },
+            "portfolio_values": [10000000.0] * len(df_test),
+            "positions": [0] * len(df_test),
+            "trade_logs": []
+        }
+
     if not os.path.exists(ouch_log_path) or os.path.getsize(ouch_log_path) == 0:
-        dummy_preds = np.ones(len(df_test)) * 0.15
-        return bt.run_backtest(df_test, dummy_preds, ticker, sentiment_coef=0.25)
+        return empty_metrics()
         
     try:
         df_ouch = pd.read_csv(ouch_log_path)
     except Exception as e:
         print(f"Warning: Failed to load OUCH log: {e}")
-        dummy_preds = np.ones(len(df_test)) * 0.15
-        return bt.run_backtest(df_test, dummy_preds, ticker, sentiment_coef=0.25)
+        return empty_metrics()
         
     if len(df_ouch) == 0:
-        dummy_preds = np.ones(len(df_test)) * 0.15
-        return bt.run_backtest(df_test, dummy_preds, ticker, sentiment_coef=0.25)
+        return empty_metrics()
         
     # Build dictionary of C++ signals mapped to tick index.
     # C++ sets order_id = tracking_number + 999000.
@@ -374,7 +393,7 @@ def evaluate_ouch_orders(df_test: pd.DataFrame, ouch_log_path: str, ticker: str)
     avg_ret = np.mean(returns) if len(returns) > 0 else 0
     std_ret = np.std(returns) if len(returns) > 0 else 1
     
-    sharpe = (avg_ret / (std_ret + 1e-8)) * np.sqrt(252 * 5000) * 0.05 if len(returns) > 0 else 0.0
+    sharpe = (avg_ret / (std_ret + 1e-8)) * np.sqrt(252 * 1500) if len(returns) > 0 else 0.0
     
     cum_max = np.maximum.accumulate(portfolio_values)
     drawdowns = (portfolio_values - cum_max) / cum_max * 100.0
