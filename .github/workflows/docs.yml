@@ -1,0 +1,42 @@
+name: Deploy Docs to Vercel
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "sagan/**"      # docstring changes rebuild API reference
+  workflow_dispatch:
+
+jobs:
+  deploy-docs:
+    name: Build & Deploy MkDocs → Vercel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed for git-revision-date plugin
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install docs dependencies
+        run: pip install --break-system-packages -r docs/requirements.txt
+
+      - name: Install sagan (for mkdocstrings autodoc)
+        run: pip install --break-system-packages -e .
+
+      - name: Build MkDocs site
+        run: mkdocs build --strict
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: site/
+          vercel-args: "--prod"

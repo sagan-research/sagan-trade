@@ -1,0 +1,132 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# ---------------------------------------------------------------------------
+# Project metadata (PEP 621)
+# ---------------------------------------------------------------------------
+[project]
+name = "sagan-trade"
+version = "0.9.3"
+description = "Strategic High-Throughput Predictive Trading Engine with iterative R2 fitting and SaganLLM discovery."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Sagan Labs", email = "hello@sagan-docs.vercel.app" }]
+keywords = [
+    "trading", "quantitative-finance", "machine-learning",
+    "explainable-ai", "pinn", "temporal-fusion-transformer",
+    "mean-reversion", "ensemble", "deep-learning",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+dependencies = [
+    "tensorflow>=2.10",
+    "pandas>=1.5",
+    "numpy>=1.23",
+    "yfinance>=0.2",
+    "scikit-learn>=1.1",
+    "streamlit>=1.25",
+    "plotly>=5.15",
+    "cryptography",
+    "typer",
+    "snaptrade-python-sdk",
+    "schedule",
+    "requests",
+]
+
+[project.optional-dependencies]
+# Full local dev (includes TF, docs tools)
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "mypy>=1.5",
+    "build>=1.0",
+    "twine>=4.0",
+    "pyinstaller>=6.0",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.24",
+]
+# Lightweight CI extras — TF is mocked via tests/conftest.py
+ci = [
+    "pytest>=7.4",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "mypy>=1.5",
+    "pandas>=1.5",
+    "numpy>=1.23",
+    "scikit-learn>=1.1",
+    "yfinance>=0.2",
+]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.24",
+    "mkdocs-git-revision-date-localized-plugin>=1.2",
+]
+[project.scripts]
+sagan = "sagan.cli.commands:app"
+sagan-download-models = "sagan.Predictive_lib.download_models:main"
+
+[project.urls]
+Repository     = "https://github.com/That-Tech-Geek/sagan-trade"
+Homepage       = "https://sagan-trade.vercel.app"
+Documentation  = "https://sagan-trade.vercel.app"
+Source         = "https://github.com/That-Tech-Geek/sagan-trade"
+"Bug Tracker"  = "https://github.com/That-Tech-Geek/sagan-trade/issues"
+Changelog      = "https://sagan-trade.vercel.app/changelog"
+PyPI           = "https://pypi.org/project/sagan-trade/"
+
+# ---------------------------------------------------------------------------
+# Setuptools
+# ---------------------------------------------------------------------------
+[tool.setuptools.packages.find]
+where   = ["."]
+include = ["sagan*"]
+
+[tool.setuptools.package-data]
+"sagan" = ["py.typed"]
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts   = "-v"
+
+# ---------------------------------------------------------------------------
+# Ruff  (fast linter)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length    = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "C4"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["sagan"]
+
+# ---------------------------------------------------------------------------
+# Mypy
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version       = "3.9"
+warn_return_any      = false
+warn_unused_configs  = false
+ignore_missing_imports = true
+ignore_errors = true

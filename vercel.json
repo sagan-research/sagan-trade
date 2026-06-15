@@ -1,0 +1,9 @@
+{
+  "buildCommand": "pip3 install -r docs/requirements.txt && python3 -m mkdocs build --strict",
+  "outputDirectory": "site",
+  "installCommand": "pip3 install -r docs/requirements.txt",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/$1" }
+  ]
+}

@@ -8,9 +8,9 @@ import os
 # Ensure parent directory is in path to import sagan-trade modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from simulator import HawkesLOBSimulator
-from backtester import HighFrequencyBacktester
-from llm_agents import AgenticEnsemble
+from sagan.simulator import HawkesLOBSimulator
+from sagan.backtester import HighFrequencyBacktester
+from sagan.llm_agents import AgenticEnsemble
 
 st.set_page_config(page_title="Sagan Trade: Auto-Trader", layout="wide", initial_sidebar_state="expanded")
 
