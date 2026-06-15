@@ -2,6 +2,34 @@ import numpy as np
 import pandas as pd
 import os
 from typing import Dict, List, Tuple
+from numba import jit
+
+@jit(nopython=True)
+def _fast_vectorized_pnl(bid_prices: np.ndarray, ask_prices: np.ndarray, predictions: np.ndarray, latency: int, lot_size: int, fee_rate: float):
+    """Core fast loop for Numba vectorization"""
+    cash = 0.0
+    position = 0
+    n = len(bid_prices)
+    portfolio_values = np.zeros(n)
+    
+    for t in range(latency, n):
+        mid = (bid_prices[t] + ask_prices[t]) / 2.0
+        actual_spread = ask_prices[t] - bid_prices[t]
+        pred_spread = predictions[t - latency]
+        
+        # Aggressive taker condition mock
+        if actual_spread > pred_spread + 0.05:
+            if position == 0:
+                position += lot_size
+                cash -= ask_prices[t] * lot_size * (1 + fee_rate)
+        elif actual_spread < pred_spread - 0.05:
+            if position > 0:
+                cash += bid_prices[t] * lot_size * (1 - fee_rate)
+                position = 0
+                
+        portfolio_values[t] = cash + position * mid
+        
+    return portfolio_values
 
 class HighFrequencyBacktester:
     """
@@ -339,3 +367,37 @@ class HighFrequencyBacktester:
             "positions": positions,
             "trade_logs": trade_logs
         }
+
+    def run_vectorized_backtest(self, df: pd.DataFrame, predictions: np.ndarray, ticker: str) -> Dict:
+        """
+        Ultra-fast Numba vectorized backtesting route, mirroring vectorbt performance.
+        Useful for running parameter sweeps without queue simulation.
+        """
+        bid_prices = df["bid_price"].values
+        ask_prices = df["ask_price"].values
+        base_prices = {"RELIANCE": 10, "HDFCBANK": 15, "INFY": 20, "MRF": 1, "SUZLON": 500, "YESBANK": 500}
+        lot_size = base_prices.get(ticker, 10)
+        fee_rate = 0.00035  # Approx 3.5 bps
+        
+        port_vals = _fast_vectorized_pnl(bid_prices, ask_prices, predictions, self.latency_ticks, lot_size, fee_rate)
+        
+        # Offset to start with initial capital
+        initial_capital = 10000000.0
+        final_vals = initial_capital + port_vals
+        returns = np.diff(final_vals) / final_vals[:-1]
+        
+        total_return_pct = (final_vals[-1] - initial_capital) / initial_capital * 100.0
+        sharpe = (np.mean(returns) / (np.std(returns) + 1e-8)) * np.sqrt(252 * 5000) if len(returns) > 0 else 0.0
+        
+        metrics = {
+            "ticker": ticker,
+            "total_return_pct": np.round(total_return_pct, 4),
+            "sharpe_ratio": np.round(sharpe, 3),
+            "is_vectorized": True
+        }
+        
+        return {
+            "metrics": metrics,
+            "portfolio_values": final_vals.tolist()
+        }
+

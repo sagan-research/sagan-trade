@@ -2,13 +2,17 @@ from setuptools import setup, find_packages
 
 setup(
     name="sagan-trade",
-    version="0.8.4",
+    version="0.9.1",
     packages=find_packages(),
     install_requires=[
         "numpy",
         "pandas",
         "torch",
-        "scikit-learn"
+        "numba",
+        "scipy",
+        "scikit-learn",
+        "streamlit",
+        "plotly"
     ],
     author="Sambit Mishra",
     author_email="sambit1912@gmail.com",
