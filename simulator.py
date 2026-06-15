@@ -13,6 +13,18 @@ class HawkesLOBSimulator:
         # Stock Profiles mapping to NSE market realities
         # Tick size is fixed at ₹0.05 for NSE
         self.stock_profiles = {
+            "NIFTY50": {
+                "name": "NIFTY 50 Index (High Liquidity, Macro ETF Proxy)",
+                "base_price": 24000.0,
+                "mean_spread_ticks": 1,
+                "min_spread_ticks": 1,
+                "volatility_annual": 0.12,
+                "base_depth": 50000,
+                "hawkes_mu": 0.8,
+                "hawkes_alpha": 0.35,
+                "hawkes_beta": 0.9,
+                "tick_size": 0.05
+            },
             "RELIANCE": {
                 "name": "Reliance Industries Ltd (High Liquidity, Large Cap)",
                 "base_price": 2500.0,
