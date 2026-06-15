@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="sagan-trade",
-    version="0.8.3",
+    version="0.8.4",
     packages=find_packages(),
     install_requires=[
         "numpy",
