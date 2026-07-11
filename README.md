@@ -96,6 +96,22 @@ Instead of weight matrices, Sagan discovers market invariants in the form of mat
 - **Explainability**: Every trade is backed by a human-readable formula, e.g., `(Close * 0.5) + log(Volume)`.
 - **Hawkes-Bates VRP Proxy**: Autonomously discovered through the AIN, this macroeconomic sidecar shifts portfolios to cash during contagion regimes.
 
+### 5. Market Microstructure Insights (`market_microstructure.py`)
+Incorporates a Hawkes process MLE estimator combined with heterogeneous agent price expectations to simulate price ranges and generate automated buy/sell signals.
+- **Heterogeneous Agents**: Simulates large sets of market participants with varying risk aversions and price expectations.
+- **Bootstrapping**: Computes expected market-clearing prices using bootstrapped distributions and provides statistically robust price ranges for portfolio management.
+
+```python
+from sagan_trade import analyze_portfolio, visualize_stock_insights
+
+# Generate signals for a basket of stocks
+portfolio_df = analyze_portfolio(["AAPL", "MSFT", "GOOG"])
+print(portfolio_df)
+
+# Visualize price range distributions and risk-aversion interactions
+fig = visualize_stock_insights("AAPL")
+```
+
 ---
 
 ## 🛠️ Complete Workflow Example

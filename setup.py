@@ -2,13 +2,15 @@ from setuptools import setup, find_packages
 
 setup(
     name="sagan-trade",
-    version="0.8.8",
+    version="0.9.6",
     packages=find_packages(),
     install_requires=[
         "numpy",
         "pandas",
         "scipy",
-        "yfinance"
+        "yfinance",
+        "matplotlib",
+        "seaborn"
     ],
     author="Sambit Mishra",
     author_email="sambit1912@gmail.com",
