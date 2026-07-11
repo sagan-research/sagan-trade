@@ -340,5 +340,139 @@ def visualize_stock_insights(ticker):
     ax4.set_ylabel('Agent Expected Price')
     ax4.set_title('Risk Aversion vs. Expected Price (Heterogeneity)')
 
-    plt.tight_layout()
     return fig
+
+# ----------------------------------------------------------------------
+# 4. Geometric Brownian Motion (GBM) Simulation
+# ----------------------------------------------------------------------
+def simulate_price_range_gbm(ticker,
+                             N=1_000_000,
+                             n_bootstrap=10_000,
+                             bootstrap_size=100_000,
+                             frac_sigma_mu=0.2,
+                             frac_sigma_sigma=0.2,
+                             mu_A=2.0,
+                             sigma_A=0.8):
+    """
+    Run the simulation for a given ticker using purely Geometric Brownian Motion (GBM)
+    (ignoring Hawkes jumps), using the diffusion parameters extracted from historical data.
+    """
+    params = estimate_stock_parameters(ticker)
+    S0 = params['S0']
+    T = params['T']
+    mu = params['mu']
+    sigma = params['sigma']
+
+    sigma_mu = frac_sigma_mu * abs(mu) if mu != 0 else 0.01
+    sigma_sigma = frac_sigma_sigma * sigma
+
+    mu_i = np.random.normal(mu, sigma_mu, N)
+    sigma_i = np.random.normal(sigma, sigma_sigma, N)
+    sigma_i = np.maximum(sigma_i, 0.01)
+
+    # For pure GBM, lambda_star and jumps are zero
+    E_R = (mu_i - 0.5 * sigma_i**2) * T
+    Var_R = (sigma_i**2) * T
+
+    E_ST = S0 * np.exp(E_R + 0.5 * Var_R)
+    Var_ST = S0**2 * np.exp(2 * E_R + Var_R) * (np.exp(Var_R) - 1)
+    Var_ST = np.maximum(Var_ST, 1e-12)
+
+    A = truncnorm.rvs(a=(0.1 - mu_A) / sigma_A, b=np.inf, loc=mu_A, scale=sigma_A, size=N)
+
+    weight = 1.0 / (A * Var_ST)
+    num = E_ST * weight
+
+    prices = np.empty(n_bootstrap)
+    for b in range(n_bootstrap):
+        idx = np.random.choice(N, size=bootstrap_size, replace=True)
+        supply_sub = bootstrap_size / N
+        P_star = (np.sum(num[idx]) - supply_sub) / np.sum(weight[idx])
+        prices[b] = P_star
+
+    lower, median, upper = np.percentile(prices, [2.5, 50, 97.5])
+    return {
+        "ticker": ticker,
+        "current_price": S0,
+        "price_range": (lower, upper),
+        "median_price": median,
+        "mean_price": np.mean(prices),
+        "std_price": np.std(prices),
+        "all_bootstrap_prices": prices,
+        "estimated_parameters": params
+    }
+
+
+# ----------------------------------------------------------------------
+# 5. Merton Jump-Diffusion Simulation (Constant Poisson Intensity)
+# ----------------------------------------------------------------------
+def simulate_price_range_merton(ticker,
+                                N=1_000_000,
+                                n_bootstrap=10_000,
+                                bootstrap_size=100_000,
+                                frac_sigma_mu=0.2,
+                                frac_sigma_sigma=0.2,
+                                frac_sigma_lambda=0.2,
+                                mu_A=2.0,
+                                sigma_A=0.8):
+    """
+    Run the simulation for a given ticker using the Merton Jump-Diffusion model.
+    It replaces the Hawkes clustering path with a constant Poisson intensity lambda.
+    """
+    params = estimate_stock_parameters(ticker)
+    S0 = params['S0']
+    T = params['T']
+    mu = params['mu']
+    sigma = params['sigma']
+    mu_J = params['mu_J']
+    sigma_J = params['sigma_J']
+    mu_l = params['mu_l']
+    alpha = params['alpha']
+    beta = params['beta']
+    
+    # Calculate stationary Poisson lambda from Hawkes parameters
+    lambda_baseline = mu_l / (1 - alpha/beta)
+
+    sigma_mu = frac_sigma_mu * abs(mu) if mu != 0 else 0.01
+    sigma_sigma = frac_sigma_sigma * sigma
+    sigma_lambda = frac_sigma_lambda * lambda_baseline
+
+    mu_i = np.random.normal(mu, sigma_mu, N)
+    sigma_i = np.random.normal(sigma, sigma_sigma, N)
+    sigma_i = np.maximum(sigma_i, 0.01)
+    
+    lambda_i = np.random.normal(lambda_baseline, sigma_lambda, N)
+    lambda_i = np.maximum(lambda_i, 0.0)
+
+    # Subjective moments for Merton Jump-Diffusion
+    E_R = (mu_i - 0.5 * sigma_i**2 + lambda_i * mu_J) * T
+    Var_R = (sigma_i**2 + lambda_i * (sigma_J**2 + mu_J**2)) * T
+
+    E_ST = S0 * np.exp(E_R + 0.5 * Var_R)
+    Var_ST = S0**2 * np.exp(2 * E_R + Var_R) * (np.exp(Var_R) - 1)
+    Var_ST = np.maximum(Var_ST, 1e-12)
+
+    A = truncnorm.rvs(a=(0.1 - mu_A) / sigma_A, b=np.inf, loc=mu_A, scale=sigma_A, size=N)
+
+    weight = 1.0 / (A * Var_ST)
+    num = E_ST * weight
+
+    prices = np.empty(n_bootstrap)
+    for b in range(n_bootstrap):
+        idx = np.random.choice(N, size=bootstrap_size, replace=True)
+        supply_sub = bootstrap_size / N
+        P_star = (np.sum(num[idx]) - supply_sub) / np.sum(weight[idx])
+        prices[b] = P_star
+
+    lower, median, upper = np.percentile(prices, [2.5, 50, 97.5])
+    return {
+        "ticker": ticker,
+        "current_price": S0,
+        "price_range": (lower, upper),
+        "median_price": median,
+        "mean_price": np.mean(prices),
+        "std_price": np.std(prices),
+        "all_bootstrap_prices": prices,
+        "estimated_parameters": params
+    }
+

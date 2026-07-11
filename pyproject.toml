@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # ---------------------------------------------------------------------------
 [project]
 name = "sagan-trade"
-version = "0.9.6"
+version = "1.0.0"
 description = "Strategic High-Throughput Predictive Trading Engine with iterative R2 fitting and SaganLLM discovery."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -48,6 +48,7 @@ dependencies = [
     "requests",
     "matplotlib",
     "seaborn",
+    "firebase-admin",
 ]
 
 [project.optional-dependencies]
