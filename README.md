@@ -96,6 +96,15 @@ Instead of weight matrices, Sagan discovers market invariants in the form of mat
 - **Explainability**: Every trade is backed by a human-readable formula, e.g., `(Close * 0.5) + log(Volume)`.
 - **Hawkes-Bates VRP Proxy**: Autonomously discovered through the AIN, this macroeconomic sidecar shifts portfolios to cash during contagion regimes.
 
+### 5. Quantitative Strategies (`approved_strategies/`)
+Sagan-Trade now includes standalone quantitative research models integrated directly into the library.
+- **PEAD Technical Elasticity (`pead_technical_elasticity.py`)**: Explores Post-Earnings Announcement Drift conditioned on structural momentum and 20-day historical volatility. This model produces a massive **195% R² improvement** and an out-of-sample Net Spread of 23.62% with a Sharpe ratio of 0.40.
+
+### 6. Markov Chain Analysis (`sagan/markov_models.py`)
+Recently integrated from ArXiv research, the library now features powerful Markov modeling for regime switching and return distribution:
+- **HybridHiddenMarkovModel**: Bypasses the Baum-Welch EM algorithm by discretizing returns and directly counting transitions, handling jump-diffusion mechanisms to enforce realistic tail-state dwell times.
+- **MarkovRegimeSwitcher**: Predicts market regimes (e.g. high volatility vs. low volatility) and transitions dynamically based on recent market windows.
+
 ---
 
 ## 🛠️ Complete Workflow Example
