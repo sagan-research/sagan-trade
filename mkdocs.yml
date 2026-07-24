@@ -71,6 +71,7 @@ nav:
       - Single Stock: tutorials/single_stock.md
       - Parallel Training: tutorials/parallel_training.md
       - Custom Configuration: tutorials/custom_config.md
+      - Markov Research: markov_research.md
   - Architecture: architecture.md
   - API Reference:
       - Overview: api/index.md
