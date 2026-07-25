@@ -64,14 +64,6 @@ from .market_microstructure import (
     simulate_price_range_merton,
     visualize_stock_insights,
 )
-from .pinn_models import (
-    BlackScholesPINN,
-    HestonPINN,
-    PINNConfig,
-    PINNTrainer,
-    create_bs_pinn,
-    create_heston_pinn,
-)
 from .portfolio_optimization import (
     BlackLittermanOptimizer,
     HierarchicalRiskParity,
@@ -86,8 +78,31 @@ from .portfolio_optimization import (
     optimize_portfolio,
 )
 from .symbolic_regressor import SymbolicRegressor
-from .tft_model import TemporalFusionTransformer, TFTConfig, create_tft_model
 from .volatility_regime_filter import VolatilityRegimeFilter
+
+try:
+    from .pinn_models import (
+        BlackScholesPINN,
+        HestonPINN,
+        PINNConfig,
+        PINNTrainer,
+        create_bs_pinn,
+        create_heston_pinn,
+    )
+except ImportError:
+    BlackScholesPINN = None  # type: ignore[assignment,misc]
+    HestonPINN = None  # type: ignore[assignment,misc]
+    PINNConfig = None  # type: ignore[assignment,misc]
+    PINNTrainer = None  # type: ignore[assignment,misc]
+    create_bs_pinn = None  # type: ignore[assignment,misc]
+    create_heston_pinn = None  # type: ignore[assignment,misc]
+
+try:
+    from .tft_model import TemporalFusionTransformer, TFTConfig, create_tft_model
+except ImportError:
+    TemporalFusionTransformer = None  # type: ignore[assignment,misc]
+    TFTConfig = None  # type: ignore[assignment,misc]
+    create_tft_model = None  # type: ignore[assignment,misc]
 
 __all__ = [
     # Core
