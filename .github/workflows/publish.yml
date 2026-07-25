@@ -109,6 +109,7 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
+          attestations: false
 
   publish-pypi:
     name: Publish to PyPI
@@ -131,6 +132,8 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: false
 
   create-release:
     name: Create GitHub Release
