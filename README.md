@@ -25,6 +25,9 @@ import sagan_trade
 print(sagan_trade.__version__)
 ```
 
+> [!IMPORTANT]
+> **AIN High-Fidelity Standard**: As of v1.0.1, the Autonomous Intelligence Network (AIN) has autonomously enforced rigorous Google Style docstrings and exhaustive static typing across all modules (e.g. `BacktestEngine`, `AsymmetricRiskEngine`).
+
 ---
 
 ## 🔬 Core Architecture & API Reference
