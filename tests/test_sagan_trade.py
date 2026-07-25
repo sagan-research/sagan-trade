@@ -5,7 +5,12 @@ Comprehensive test suite for Sagan Trade library.
 import numpy as np
 import pandas as pd
 import pytest
-import torch
+
+try:
+    import torch
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
 
 # Core modules
 from sagan_trade import (
@@ -376,6 +381,7 @@ class TestBlackLittermanOptimizer:
         assert result.posterior_sigma is not None
 
 
+@pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")
 class TestTemporalFusionTransformer:
     """Test TFT Model."""
 
@@ -443,6 +449,7 @@ class TestTemporalFusionTransformer:
         assert quantiles.shape == (batch_size, 3, 3, 1)
 
 
+@pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")
 class TestPINNModels:
     """Test PINN Models."""
 
@@ -698,6 +705,7 @@ class TestFeatureEngineering:
         assert len(rv) == len(self.data)
 
 
+@pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")
 class TestIntegration:
     """Integration tests combining multiple modules."""
 
