@@ -136,8 +136,11 @@ class TestTechnicalIndicators:
     def test_bollinger_bands(self):
         upper, middle, lower = TechnicalIndicators.bollinger_bands(self.close)
         assert len(upper) == len(self.close)
-        assert (upper >= middle).all()
-        assert (middle >= lower).all()
+        valid_upper = upper.dropna()
+        valid_middle = middle.dropna()
+        valid_lower = lower.dropna()
+        assert (valid_upper >= valid_middle).all()
+        assert (valid_middle >= valid_lower).all()
 
     def test_atr(self):
         atr = TechnicalIndicators.atr(self.high, self.low, self.close)
