@@ -60,14 +60,22 @@ from sagan_trade.feature_engineering import (
 )
 
 # PINN models
-from sagan_trade.pinn_models import (
-    BlackScholesPINN,
-    HestonPINN,
-    PINNConfig,
-    PINNTrainer,
-    create_bs_pinn,
-    create_heston_pinn,
-)
+try:
+    from sagan_trade.pinn_models import (
+        BlackScholesPINN,
+        HestonPINN,
+        PINNConfig,
+        PINNTrainer,
+        create_bs_pinn,
+        create_heston_pinn,
+    )
+except ImportError:
+    BlackScholesPINN = None  # type: ignore[assignment,misc]
+    HestonPINN = None  # type: ignore[assignment,misc]
+    PINNConfig = None  # type: ignore[assignment,misc]
+    PINNTrainer = None  # type: ignore[assignment,misc]
+    create_bs_pinn = None  # type: ignore[assignment,misc]
+    create_heston_pinn = None  # type: ignore[assignment,misc]
 
 # Portfolio optimization
 from sagan_trade.portfolio_optimization import (
@@ -79,11 +87,16 @@ from sagan_trade.portfolio_optimization import (
 )
 
 # Deep Learning
-from sagan_trade.tft_model import (
-    TemporalFusionTransformer,
-    TFTConfig,
-    create_tft_model,
-)
+try:
+    from sagan_trade.tft_model import (
+        TemporalFusionTransformer,
+        TFTConfig,
+        create_tft_model,
+    )
+except ImportError:
+    TemporalFusionTransformer = None  # type: ignore[assignment,misc]
+    TFTConfig = None  # type: ignore[assignment,misc]
+    create_tft_model = None  # type: ignore[assignment,misc]
 
 
 class TestTechnicalIndicators:
