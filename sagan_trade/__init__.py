@@ -50,7 +50,10 @@ from .feature_engineering import (
     TechnicalIndicators,
     create_feature_engine,
 )
-from .firestore_client import SaganFirestore
+try:
+    from .firestore_client import SaganFirestore
+except ImportError:
+    SaganFirestore = None  # type: ignore[misc,assignment]
 from .market_microstructure import (
     HawkesLOBSimulator,
     analyze_portfolio,
