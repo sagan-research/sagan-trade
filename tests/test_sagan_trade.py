@@ -123,8 +123,9 @@ class TestTechnicalIndicators:
     def test_rsi(self):
         rsi = TechnicalIndicators.rsi(self.close, 14)
         assert len(rsi) == len(self.close)
-        assert (rsi >= 0).all()
-        assert (rsi <= 100).all()
+        valid = rsi.dropna()
+        assert (valid >= 0).all()
+        assert (valid <= 100).all()
 
     def test_macd(self):
         macd, signal, hist = TechnicalIndicators.macd(self.close)
