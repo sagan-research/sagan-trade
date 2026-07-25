@@ -1,7 +1,9 @@
 import logging
 
+
 class MockBrokerSandbox:
     """Mock Sandbox mirroring institutional brokers like Interactive Brokers (ib_insync)."""
+
     def __init__(self, account_id="MOCK_INST_001"):
         self.account_id = account_id
         self.connected = False
@@ -22,10 +24,12 @@ class MockBrokerSandbox:
     def get_positions(self):
         return self.positions
 
-    def place_order(self, ticker: str, side: str, qty: int, order_type: str = "LMT", price: float = None):
+    def place_order(
+        self, ticker: str, side: str, qty: int, order_type: str = "LMT", price: float = None
+    ):
         if not self.connected:
             raise ConnectionError("Broker not connected.")
-        
+
         order = {
             "id": len(self.orders) + 1,
             "ticker": ticker,
@@ -33,7 +37,7 @@ class MockBrokerSandbox:
             "qty": qty,
             "type": order_type.upper(),
             "price": price,
-            "status": "SUBMITTED"
+            "status": "SUBMITTED",
         }
         self.orders.append(order)
         self.logger.info(f"Order Placed: {order}")
@@ -55,7 +59,13 @@ class InstitutionalExecutionRouter:
     """
     Enterprise Routing Module with compliance checks and failover.
     """
-    def __init__(self, primary_broker: MockBrokerSandbox, max_order_qty: int = 10000, daily_loss_limit: float = 50000.0):
+
+    def __init__(
+        self,
+        primary_broker: MockBrokerSandbox,
+        max_order_qty: int = 10000,
+        daily_loss_limit: float = 50000.0,
+    ):
         self.primary_broker = primary_broker
         self.max_order_qty = max_order_qty
         self.daily_loss_limit = daily_loss_limit
@@ -64,7 +74,9 @@ class InstitutionalExecutionRouter:
     def execute_trade(self, ticker: str, side: str, qty: int, price: float):
         # Compliance Check 1: Size limits
         if qty > self.max_order_qty:
-            logging.error(f"Compliance Block: Quantity {qty} exceeds max allowed {self.max_order_qty}")
+            logging.error(
+                f"Compliance Block: Quantity {qty} exceeds max allowed {self.max_order_qty}"
+            )
             return False
 
         # Compliance Check 2: Daily Loss limits (Kill Switch)
@@ -74,14 +86,14 @@ class InstitutionalExecutionRouter:
 
         try:
             order_id = self.primary_broker.place_order(ticker, side, qty, "LMT", price)
-            
+
             # Simulate updating positions
             if ticker not in self.primary_broker.positions:
                 self.primary_broker.positions[ticker] = 0
             self.primary_broker.positions[ticker] += qty if side.upper() == "BUY" else -qty
-            
+
             return order_id
         except ConnectionError:
-            logging.error("Primary Broker disconnected. Initiating failover...")
+            logging.exception("Primary Broker disconnected. Initiating failover...")
             # Failover logic would instantiate secondary broker connection here
             return False

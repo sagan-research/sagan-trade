@@ -1,15 +1,17 @@
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
 import yfinance as yf
+from scipy.optimize import minimize
+
 
 class SymbolicRegressor:
     """
     Symbolic Regressor discovering mathematical representations of alpha signals.
     Supports standard indicators, limit order book metrics, and custom mathematical functions.
     """
+
     def __init__(self, basis_functions=None):
-        self.basis_functions = basis_functions or ['poly', 'fourier']
+        self.basis_functions = basis_functions or ["poly", "fourier"]
         self.best_formula_name = None
         self.fitted_params = None
         self.data = None
@@ -21,23 +23,34 @@ class SymbolicRegressor:
             "Poly_Signal": {
                 "func": lambda df, p: p[0] * df["Close"] + p[1] * df["RSI"] * 0.01,
                 "num_params": 2,
-                "latex": "c_1 \\cdot P_t + c_2 \\cdot \\text{RSI}_t"
+                "latex": "c_1 \\cdot P_t + c_2 \\cdot \\text{RSI}_t",
             },
             "Fourier_Signal": {
-                "func": lambda df, p: p[0] * np.sin(df["Close"] / (df["Close"].rolling(20).mean() + 1e-8)) + p[1] * np.cos(df["RSI"] * 0.05),
+                "func": lambda df, p: (
+                    p[0] * np.sin(df["Close"] / (df["Close"].rolling(20).mean() + 1e-8))
+                    + p[1] * np.cos(df["RSI"] * 0.05)
+                ),
                 "num_params": 2,
-                "latex": "c_1 \\cdot \\sin(\\tilde{P}_t) + c_2 \\cdot \\cos(0.05 \\cdot \\text{RSI}_t)"
+                "latex": "c_1 \\cdot \\sin(\\tilde{P}_t) + c_2 \\cdot \\cos(0.05 \\cdot \\text{RSI}_t)",
             },
             "Momentum_Volume_Signal": {
-                "func": lambda df, p: p[0] * (df["Close"] - df["Close"].shift(10).bfill()) * np.log(df["Volume"] + 1e-4),
+                "func": lambda df, p: (
+                    p[0]
+                    * (df["Close"] - df["Close"].shift(10).bfill())
+                    * np.log(df["Volume"] + 1e-4)
+                ),
                 "num_params": 1,
-                "latex": "c_1 \\cdot \\Delta_{10} P_t \\cdot \\ln(V_t)"
+                "latex": "c_1 \\cdot \\Delta_{10} P_t \\cdot \\ln(V_t)",
             },
             "LOB_OFI_Vol_Pressure": {
-                "func": lambda df, p: p[0] * df.get("ofi", pd.Series(0.0, index=df.index)) * df.get("rolling_vol", pd.Series(0.0, index=df.index)),
+                "func": lambda df, p: (
+                    p[0]
+                    * df.get("ofi", pd.Series(0.0, index=df.index))
+                    * df.get("rolling_vol", pd.Series(0.0, index=df.index))
+                ),
                 "num_params": 1,
-                "latex": "c_1 \\cdot \\text{OFI}_t \\cdot \\sigma_t"
-            }
+                "latex": "c_1 \\cdot \\text{OFI}_t \\cdot \\sigma_t",
+            },
         }
 
     def _compute_rsi(self, prices, window=14):
@@ -66,7 +79,9 @@ class SymbolicRegressor:
                     df.columns = [col[0] for col in df.columns]
                 self.data = df
             else:
-                raise ValueError("If 'data' is not provided, 'target' must be a ticker symbol string.")
+                raise ValueError(
+                    "If 'data' is not provided, 'target' must be a ticker symbol string."
+                )
         else:
             self.data = data.copy()
 
@@ -96,7 +111,7 @@ class SymbolicRegressor:
                 required_cols = ["Close", "Volume"]
             elif name == "LOB_OFI_Vol_Pressure":
                 required_cols = ["ofi", "rolling_vol"]
-            
+
             if all(col in self.data.columns for col in required_cols):
                 compatible_formulas[name] = item
 
@@ -113,18 +128,18 @@ class SymbolicRegressor:
         for name, entry in compatible_formulas.items():
             func = entry["func"]
             num_params = entry["num_params"]
-            
-            def loss_func(params):
-                pred = func(self.data, params)
+
+            def loss_func(params, _func=func):
+                pred = _func(self.data, params)
                 # MSE of prediction vs. next-day return
                 return np.mean((y - pred) ** 2)
 
             x0 = np.zeros(num_params)
             res = minimize(loss_func, x0, method="Nelder-Mead")
-            
+
             final_pred = func(self.data, res.x)
             final_mse = np.mean((y - final_pred) ** 2)
-            
+
             if final_mse < best_mse:
                 best_mse = final_mse
                 best_name = name
@@ -132,7 +147,7 @@ class SymbolicRegressor:
 
         self.best_formula_name = best_name
         self.fitted_params = best_params
-        
+
         print(f"Discovered Symbolic Strategy: {self.best_formula_name}")
         print(f"Formula Equation (LaTeX): {self.formulas[self.best_formula_name]['latex']}")
         print(f"Fitted Parameters: {self.fitted_params.tolist()}")
@@ -155,14 +170,14 @@ class SymbolicRegressor:
         entry = self.formulas[self.best_formula_name]
         func = entry["func"]
         pred = func(df, self.fitted_params)
-        
+
         # Handle nan/inf
         pred = np.nan_to_num(pred, nan=0.0, posinf=0.0, neginf=0.0)
-        
+
         # Format the formula string with parameter values
         formula_latex = entry["latex"]
         formula_str = formula_latex
         for i, val in enumerate(self.fitted_params):
-            formula_str = formula_str.replace(f"c_{i+1}", f"{val:.6f}")
-            
+            formula_str = formula_str.replace(f"c_{i + 1}", f"{val:.6f}")
+
         return pd.Series(pred, index=df.index), formula_str

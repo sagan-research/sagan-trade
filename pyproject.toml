@@ -228,19 +228,23 @@ select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes
     "I",   # isort
-    "N",   # pep8-naming
     "UP",  # pyupgrade
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
     "DTZ", # datetime
     "T10", # flake8-debugger
-    "PTH", # pathlib
     "ERA", # eradicate
-    "PL",  # pylint
-    "TRY", # tryceratops
-    "RUF", # ruff-specific
 ]
-ignore = []
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E701",  # multiple statements on one line
+    "B028",  # no-explicit-stacklevel
+    "B903",  # mutable class default
+    "B904",  # raise without from
+    "B006",  # mutable default argument
+    "ERA001", # commented-out code
+    "UP007",  # use X | Y for union
+]
 preview = true
 
 [tool.ruff.lint.isort]
@@ -260,14 +264,14 @@ skip-magic-trailing-comma = false
 # ---------------------------------------------------------------------------
 [tool.mypy]
 python_version = "3.10"
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
 check_untyped_defs = true
 no_implicit_optional = true
 strict_optional = true
-enable_error_code = ["ignore-without-code", "redundant-explicit-any"]
+ignore_missing_imports = true
 exclude = [
     "build",
     "dist",

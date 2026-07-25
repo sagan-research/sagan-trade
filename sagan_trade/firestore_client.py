@@ -1,38 +1,43 @@
+import os
+import pathlib
+
 import firebase_admin
 from firebase_admin import credentials, firestore
-import json
-import os
+
 
 class SaganFirestore:
     """
     Dynamic fetching and filtering module for the Sagan Firestore database.
     """
+
     def __init__(self, project_id=None, credential_path=None):
         """
         Initializes the Firestore client.
         If credential_path is not provided, uses standard Google Application Default Credentials.
         """
         self.project_id = project_id or os.getenv("GOOGLE_CLOUD_PROJECT", "sagan-quant")
-        
+
         try:
-            if credential_path and os.path.exists(credential_path):
+            if credential_path and pathlib.Path(credential_path).exists():
                 cred = credentials.Certificate(credential_path)
-                firebase_admin.initialize_app(cred, {'projectId': self.project_id})
+                firebase_admin.initialize_app(cred, {"projectId": self.project_id})
             else:
                 # Use Application Default Credentials
-                firebase_admin.initialize_app(options={'projectId': self.project_id})
+                firebase_admin.initialize_app(options={"projectId": self.project_id})
         except ValueError:
             # App already initialized
             pass
         except Exception as e:
-            if "DefaultCredentialsError" in str(type(e).__name__) or "Could not automatically determine credentials" in str(e):
+            if "DefaultCredentialsError" in str(
+                type(e).__name__
+            ) or "Could not automatically determine credentials" in str(e):
                 print("⚠️ Application Default Credentials not found. Initiating Google Sign-In...")
                 self.google_login()
                 # Retry initialization
-                firebase_admin.initialize_app(options={'projectId': self.project_id})
+                firebase_admin.initialize_app(options={"projectId": self.project_id})
             else:
                 raise e
-            
+
         self.db = firestore.client()
 
     @staticmethod
@@ -41,12 +46,15 @@ class SaganFirestore:
         Triggers the Google Sign-In flow for Application Default Credentials.
         """
         import subprocess
+
         print("Launching Google Sign-In in your browser...")
         try:
             subprocess.run(["gcloud", "auth", "application-default", "login"], check=True)
             print("✅ Successfully authenticated with Google!")
         except FileNotFoundError:
-            raise RuntimeError("The 'gcloud' CLI is required for Google Sign-In but was not found. Please install the Google Cloud SDK.")
+            raise RuntimeError(
+                "The 'gcloud' CLI is required for Google Sign-In but was not found. Please install the Google Cloud SDK."
+            )
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Google Sign-In failed: {e}")
 
@@ -59,7 +67,7 @@ class SaganFirestore:
         results = []
         for doc in docs:
             data = doc.to_dict()
-            data['_id'] = doc.id
+            data["_id"] = doc.id
             results.append(data)
         return results
 
@@ -73,14 +81,14 @@ class SaganFirestore:
 
         for field, op, value in filters:
             query = query.where(field, op, value)
-            
+
         docs = query.stream()
         results = []
         for doc in docs:
             data = doc.to_dict()
-            data['_id'] = doc.id
+            data["_id"] = doc.id
             results.append(data)
-            
+
         return results
 
     def list_collections(self) -> list:
@@ -98,6 +106,6 @@ class SaganFirestore:
         doc = doc_ref.get()
         if doc.exists:
             data = doc.to_dict()
-            data['_id'] = doc.id
+            data["_id"] = doc.id
             return data
         return None
