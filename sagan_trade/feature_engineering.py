@@ -812,47 +812,6 @@ class FeatureEngine:
             warnings.warn("Matplotlib not available for plotting")
 
 
-@dataclass
-class FeatureConfig:
-    """Configuration for feature engineering."""
-    
-    # Technical indicators
-    include_trend: bool = True
-    include_momentum: bool = True
-    include_volatility: bool = True
-    include_volume: bool = True
-    include_cycle: bool = False
-    include_pattern: bool = False
-    
-    # Lookback windows
-    short_windows: List[int] = field(default_factory=lambda: [5, 10, 20])
-    medium_windows: List[int] = field(default_factory=lambda: [50, 100])
-    long_windows: List[int] = field(default_factory=lambda: [200])
-    
-    # Microstructure
-    include_microstructure: bool = True
-    include_ofi: bool = True
-    include_vpin: bool = True
-    
-    # Cross-sectional
-    include_cross_sectional: bool = False
-    market_neutralize: bool = True
-    sector_neutralize: bool = False
-    
-    # Alternative data
-    include_sentiment: bool = False
-    include_fundamentals: bool = False
-    
-    # Feature selection
-    selection_method: Literal["mutual_info", "f_regression", "lasso", "rf_importance", "none"] = "mutual_info"
-    max_features: int = 100
-    min_importance: float = 0.001
-    
-    # Preprocessing
-    scaler: Literal["standard", "robust", "none"] = "robust"
-    clip_outliers: float = 5.0
-    fill_method: Literal["ffill", "bfill", "interpolate", "zero"] = "ffill"
-
 
 # Convenience functions
 def create_feature_engine(

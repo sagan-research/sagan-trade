@@ -14,7 +14,7 @@ A cutting-edge quantitative finance library featuring:
 from .volatility_regime_filter import VolatilityRegimeFilter
 from .symbolic_regressor import SymbolicRegressor
 from .asymmetric_risk_engine import AsymmetricRiskEngine
-from .backtest_engine import BacktestEngine, BacktestResult
+from .backtest_engine import BacktestEngine, BacktestResult as BacktestResultSimple
 from .market_microstructure import (
     simulate_price_range,
     simulate_price_range_gbm,
@@ -88,7 +88,7 @@ __all__ = [
     "SymbolicRegressor",
     "AsymmetricRiskEngine",
     "BacktestEngine",
-    "BacktestResult",
+    "BacktestResultSimple",
     "VolatilityRegimeFilter",
     "SaganFirestore",
     # Market Microstructure
