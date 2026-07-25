@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # ---------------------------------------------------------------------------
 [project]
 name = "sagan-trade"
-version = "2.0.0"
+version = "2.0.1"
 description = "SOTA Quantitative Finance Library: Symbolic Regression, Temporal Fusion Transformers, PINNs, Advanced Portfolio Optimization, and Institutional-Grade Backtesting"
 readme = "README.md"
 requires-python = ">=3.10"
