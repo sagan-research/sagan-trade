@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=68", "wheel", "setuptools-scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 # ---------------------------------------------------------------------------
@@ -7,126 +7,325 @@ build-backend = "setuptools.build_meta"
 # ---------------------------------------------------------------------------
 [project]
 name = "sagan-trade"
-version = "0.9.3"
-description = "Strategic High-Throughput Predictive Trading Engine with iterative R2 fitting and SaganLLM discovery."
+version = "2.0.0"
+description = "SOTA Quantitative Finance Library: Symbolic Regression, Temporal Fusion Transformers, PINNs, Advanced Portfolio Optimization, and Institutional-Grade Backtesting"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Sagan Labs", email = "hello@sagan-docs.vercel.app" }]
+authors = [
+    { name = "Sagan Labs", email = "hello@sagan-docs.vercel.app" },
+]
+maintainers = [
+    { name = "Sagan Labs", email = "hello@sagan-docs.vercel.app" },
+]
 keywords = [
-    "trading", "quantitative-finance", "machine-learning",
-    "explainable-ai", "pinn", "temporal-fusion-transformer",
-    "mean-reversion", "ensemble", "deep-learning",
+    "trading", "quantitative-finance", "machine-learning", "deep-learning",
+    "explainable-ai", "pinn", "temporal-fusion-transformer", "tft",
+    "symbolic-regression", "mean-reversion", "ensemble", "portfolio-optimization",
+    "hrp", "risk-parity", "black-litterman", "almgren-chriss",
+    "backtesting", "walk-forward", "purged-kfold", "market-microstructure",
+    "hawkes-process", "bates-model", "limit-order-book", "high-frequency",
+    "institutional", "alpha-generation", "factor-investing"
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Financial and Insurance Industry",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
     "Topic :: Office/Business :: Financial :: Investment",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Typing :: Typed",
 ]
 dependencies = [
-    "tensorflow>=2.10",
-    "pandas>=1.5",
-    "numpy>=1.23",
+    # Core scientific stack
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "scikit-learn>=1.3",
+    
+    # Deep learning
+    "torch>=2.1",
+    "torchvision>=0.16",
+    
+    # Time series & Transformers
+    "pytorch-forecasting>=1.6",
+    "lightning>=2.2",
+    
+    # Financial data
     "yfinance>=0.2",
-    "scikit-learn>=1.1",
-    "streamlit>=1.25",
-    "plotly>=5.15",
-    "cryptography",
-    "typer",
-    "snaptrade-python-sdk",
-    "schedule",
-    "requests",
+    "pandas-datareader>=0.10",
+    
+    # Optimization
+    "cvxpy>=1.5",
+    "scikit-optimize>=0.10",
+    
+    # Statistics & econometrics
+    "statsmodels>=0.14",
+    "arch>=6.2",
+    
+    # Visualization
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "plotly>=5.18",
+    
+    # Utilities
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+    "joblib>=1.3",
+    "numba>=0.58",
+    "typer>=0.9",
+    "rich>=13.7",
+    
+    # Optional but recommended
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
-# Full local dev (includes TF, docs tools)
+# Full development environment
 dev = [
     "pytest>=7.4",
-    "pytest-cov>=4.0",
+    "pytest-cov>=4.1",
+    "pytest-xdist>=3.5",
+    "pytest-benchmark>=4.0",
     "ruff>=0.4",
-    "mypy>=1.5",
-    "build>=1.0",
+    "mypy>=1.8",
+    "pre-commit>=3.6",
+    "build>=1.2",
     "twine>=4.0",
     "pyinstaller>=6.0",
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.24",
+    "mkdocs-git-revision-date-localized-plugin>=1.2",
+    "mkdocs-jupyter>=0.9",
+    "nbconvert>=7.16",
+    "ipykernel>=6.29",
 ]
-# Lightweight CI extras — TF is mocked via tests/conftest.py
+
+# Lightweight CI (no heavy DL deps)
 ci = [
     "pytest>=7.4",
-    "pytest-cov>=4.0",
+    "pytest-cov>=4.1",
     "ruff>=0.4",
-    "mypy>=1.5",
-    "pandas>=1.5",
-    "numpy>=1.23",
-    "scikit-learn>=1.1",
+    "mypy>=1.8",
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "scikit-learn>=1.3",
     "yfinance>=0.2",
+    "numba>=0.58",
+    "joblib>=1.3",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "plotly>=5.18",
 ]
+
+# Documentation
 docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.24",
     "mkdocs-git-revision-date-localized-plugin>=1.2",
+    "mkdocs-jupyter>=0.9",
+    "nbconvert>=7.16",
 ]
+
+# High-frequency trading extensions
+hft = [
+    "ib-insync>=0.9",
+    "redis>=5.0",
+    "msgpack>=1.0",
+]
+
+# Alternative data
+alt_data = [
+    "fredapi>=0.5",
+    "quandl>=3.7",
+    "alpaca-py>=0.18",
+]
+
+# All optional dependencies
+all = [
+    "sagan-trade[dev,hft,alt_data,docs]",
+]
+
 [project.scripts]
-sagan = "sagan.cli.commands:app"
-sagan-download-models = "sagan.Predictive_lib.download_models:main"
+sagan = "sagan.cli.main:app"
+sagan-backtest = "sagan.cli.backtest:app"
+sagan-train = "sagan.cli.train:app"
+sagan-optimize = "sagan.cli.optimize:app"
+sagan-serve = "sagan.cli.serve:app"
 
 [project.urls]
-Repository     = "https://github.com/That-Tech-Geek/sagan-trade"
-Homepage       = "https://sagan-trade.vercel.app"
-Documentation  = "https://sagan-trade.vercel.app"
-Source         = "https://github.com/That-Tech-Geek/sagan-trade"
-"Bug Tracker"  = "https://github.com/That-Tech-Geek/sagan-trade/issues"
-Changelog      = "https://sagan-trade.vercel.app/changelog"
-PyPI           = "https://pypi.org/project/sagan-trade/"
+Repository = "https://github.com/That-Tech-Geek/sagan-trade"
+Homepage = "https://sagan-trade.vercel.app"
+Documentation = "https://sagan-trade.vercel.app"
+Source = "https://github.com/That-Tech-Geek/sagan-trade"
+"Bug Tracker" = "https://github.com/That-Tech-Geek/sagan-trade/issues"
+Changelog = "https://sagan-trade.vercel.app/changelog"
+PyPI = "https://pypi.org/project/sagan-trade/"
 
 # ---------------------------------------------------------------------------
 # Setuptools
 # ---------------------------------------------------------------------------
 [tool.setuptools.packages.find]
-where   = ["."]
-include = ["sagan*"]
+where = ["."]
+include = ["sagan*", "sagan_trade*"]
 
 [tool.setuptools.package-data]
 "sagan" = ["py.typed"]
+"sagan_trade" = ["py.typed"]
+
+[tool.setuptools.dynamic]
+version = { attr = "sagan_trade.__version__" }
 
 # ---------------------------------------------------------------------------
 # Pytest
 # ---------------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts   = "-v"
+addopts = "-v --strict-markers --strict-config"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::FutureWarning",
+]
+markers = [
+    "slow: marks tests as slow",
+    "integration: marks tests as integration tests",
+    "hft: marks tests requiring HFT dependencies",
+    "gpu: marks tests requiring GPU",
+]
 
 # ---------------------------------------------------------------------------
-# Ruff  (fast linter)
+# Ruff (fast linter)
 # ---------------------------------------------------------------------------
 [tool.ruff]
-line-length    = 100
-target-version = "py39"
+line-length = 100
+target-version = "py310"
+src = ["sagan", "sagan_trade", "tests"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".venv",
+    "venv",
+    ".mypy_cache",
+    ".ruff_cache",
+    "htmlcov",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4"]
-ignore = []
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "DTZ", # datetime
+    "T10", # flake8-debugger
+    "ERA", # eradicate
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E701",  # multiple statements on one line
+    "B028",  # no-explicit-stacklevel
+    "B903",  # mutable class default
+    "B904",  # raise without from
+    "B006",  # mutable default argument
+    "ERA001", # commented-out code
+    "UP007",  # use X | Y for union
+]
+preview = true
 
 [tool.ruff.lint.isort]
-known-first-party = ["sagan"]
+known-first-party = ["sagan", "sagan_trade"]
+known-third-party = ["torch", "numpy", "pandas", "scipy", "sklearn"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
 
 # ---------------------------------------------------------------------------
-# Mypy
+# Mypy (type checking)
 # ---------------------------------------------------------------------------
 [tool.mypy]
-python_version       = "3.9"
-warn_return_any      = false
-warn_unused_configs  = false
+python_version = "3.10"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
 ignore_missing_imports = true
-ignore_errors = true
+exclude = [
+    "build",
+    "dist",
+    ".*\\.egg-info",
+    ".venv",
+    "venv",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "torch*",
+    "numpy*",
+    "pandas*",
+    "scipy*",
+    "sklearn*",
+    "yfinance*",
+    "cvxpy*",
+    "statsmodels*",
+    "arch*",
+    "pytorch_forecasting*",
+    "lightning*",
+]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# Coverage
+# ---------------------------------------------------------------------------
+[tool.coverage.run]
+source = ["sagan", "sagan_trade"]
+omit = ["tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+# ---------------------------------------------------------------------------
+# Pyright (alternative type checker)
+# ---------------------------------------------------------------------------
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "basic"
+reportMissingImports = false
+reportMissingModuleSource = false
+
+# ---------------------------------------------------------------------------
+# Bandit (security)
+# ---------------------------------------------------------------------------
+[tool.bandit]
+exclude_dirs = ["tests", "build", "dist"]
+skips = ["B101", "B601"]
