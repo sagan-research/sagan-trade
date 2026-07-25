@@ -50,12 +50,14 @@ from .feature_engineering import (
     TechnicalIndicators,
     create_feature_engine,
 )
+
 try:
     from .firestore_client import SaganFirestore
 except ImportError:
     SaganFirestore = None  # type: ignore[misc,assignment]
+from sagan.simulator import HawkesLOBSimulator
+
 from .market_microstructure import (
-    HawkesLOBSimulator,
     analyze_portfolio,
     simulate_price_range,
     simulate_price_range_gbm,
