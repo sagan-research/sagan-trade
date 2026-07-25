@@ -50,7 +50,7 @@ jobs:
 
       - name: Run pytest
         run: |
-          pytest tests/ -v --timeout=120 -x
+          pytest tests/ -v --timeout=120
 
   docs:
     name: Build Documentation

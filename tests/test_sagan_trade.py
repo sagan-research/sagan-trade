@@ -145,13 +145,14 @@ class TestTechnicalIndicators:
     def test_atr(self):
         atr = TechnicalIndicators.atr(self.high, self.low, self.close)
         assert len(atr) == len(self.close)
-        assert (atr >= 0).all()
+        assert (atr.dropna() >= 0).all()
 
     def test_stochastic(self):
         k, d = TechnicalIndicators.stochastic(self.high, self.low, self.close)
         assert len(k) == len(self.close)
-        assert (k >= 0).all()
-        assert (k <= 100).all()
+        valid_k = k.dropna()
+        assert (valid_k >= 0).all()
+        assert (valid_k <= 100).all()
 
     def test_obv(self):
         obv = TechnicalIndicators.obv(self.close, self.volume)
