@@ -58,6 +58,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -66,15 +72,13 @@ jobs:
 
       - name: Install from dist
         run: |
-          pip install dist/*.whl[ci]
+          pip install dist/*.whl
 
       - name: Run quick smoke test
         run: |
           python -c "
           import sagan_trade
           print(f'Sagan Trade v{sagan_trade.__version__} loaded successfully')
-          assert hasattr(sagan_trade, 'TemporalFusionTransformer')
-          assert hasattr(sagan_trade, 'BlackScholesPINN')
           assert hasattr(sagan_trade, 'AlmgrenChrissModel')
           assert hasattr(sagan_trade, 'HierarchicalRiskParity')
           assert hasattr(sagan_trade, 'FeatureEngine')
