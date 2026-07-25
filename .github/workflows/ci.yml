@@ -45,7 +45,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install numpy pandas scipy scikit-learn yfinance numba joblib matplotlib seaborn plotly
+          pip install numpy pandas scipy scikit-learn yfinance numba joblib matplotlib seaborn plotly cvxpy
           pip install pytest pytest-cov pytest-xdist pytest-timeout
 
       - name: Run pytest
