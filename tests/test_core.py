@@ -1,3 +1,14 @@
+import pytest
+
+try:
+    import torch  # noqa: F401
+
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+
+
+@pytest.mark.skipif(not HAS_TORCH, reason="torch not installed")
 def test_imports():
     from sagan.backtester import HighFrequencyBacktester
     from sagan.broker import InstitutionalExecutionRouter
