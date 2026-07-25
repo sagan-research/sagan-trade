@@ -362,12 +362,7 @@ class HawkesLOBSimulator:
 
         # 5. Rolling Volatility (50-tick lookback)
         df["rolling_vol"] = (
-            df["mid_price"]
-            .pct_change()
-            .rolling(window=50)
-            .std()
-            .fillna(method="bfill")
-            .fillna(1e-6)
+            df["mid_price"].pct_change().rolling(window=50).std().bfill().fillna(1e-6)
         )
 
         return df

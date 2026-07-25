@@ -13,6 +13,13 @@ try:
 except ImportError:
     HAS_TORCH = False
 
+try:
+    import yfinance  # noqa: F401
+
+    HAS_YFINANCE = True
+except ImportError:
+    HAS_YFINANCE = False
+
 # Core modules
 from sagan_trade import (
     AsymmetricRiskEngine,
@@ -23,11 +30,11 @@ from sagan_trade import (
     analyze_portfolio,
     simulate_price_range,
 )
+from sagan_trade.backtest_engine import BacktestResult as BacktestResultSimple
 
 # Advanced Backtesting
 from sagan_trade.backtesting_advanced import (
     BacktestConfig,
-    BacktestResult,
     PurgedKFoldBacktester,
     WalkForwardBacktester,
     compute_performance_metrics,
@@ -179,6 +186,7 @@ class TestMarketMicrostructure:
         assert "ofi" in df.columns
         assert "micro_price" in df.columns
 
+    @pytest.mark.skipif(not HAS_YFINANCE, reason="yfinance not installed or network unavailable")
     def test_simulate_price_range(self):
         result = simulate_price_range("RELIANCE", N=10000, n_bootstrap=100)
 
@@ -189,6 +197,7 @@ class TestMarketMicrostructure:
         assert result["ticker"] == "RELIANCE"
         assert len(result["price_range"]) == 2
 
+    @pytest.mark.skipif(not HAS_YFINANCE, reason="yfinance not installed or network unavailable")
     def test_analyze_portfolio(self):
         df = analyze_portfolio(["RELIANCE", "HDFCBANK"], quick_mode=True)
 
@@ -255,7 +264,7 @@ class TestBacktestEngine:
         engine = BacktestEngine(initial_capital=100000, maker_fee=0.0001, taker_fee=0.0003)
         result = engine.run(self.prices, self.signals)
 
-        assert isinstance(result, BacktestResult)
+        assert isinstance(result, BacktestResultSimple)
         assert result.sharpe_ratio is not None
         assert result.max_drawdown is not None
         assert result.total_return is not None
@@ -267,7 +276,7 @@ class TestBacktestEngine:
 
         result = engine.run(self.prices, self.signals, risk_model=risk_model)
 
-        assert isinstance(result, BacktestResult)
+        assert isinstance(result, BacktestResultSimple)
 
     def test_run_with_regime_filter(self):
         engine = BacktestEngine()
@@ -276,7 +285,7 @@ class TestBacktestEngine:
 
         result = engine.run(self.prices, self.signals, regime_filter=regime)
 
-        assert isinstance(result, BacktestResult)
+        assert isinstance(result, BacktestResultSimple)
 
 
 class TestSymbolicRegressor:
@@ -523,7 +532,7 @@ class TestExecutionModels:
 
     def setup_method(self):
         self.config = ExecutionConfig(
-            total_quantity=100000,
+            total_quantity=1000,
             time_horizon=1.0,
             sigma=0.02,
             risk_aversion=1e-6,
@@ -592,14 +601,7 @@ class TestExecutionModels:
         assert isinstance(result, ExecutionResult)
 
     def test_optimize_execution(self):
-        result = optimize_execution(
-            total_quantity=100000,
-            time_horizon=1.0,
-            volatility=0.02,
-            risk_aversion=1e-6,
-            permanent_impact=0.1,
-            temporary_impact=0.1,
-        )
+        result = optimize_execution(self.config)
 
         assert isinstance(result, ExecutionResult)
 

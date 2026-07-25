@@ -76,7 +76,7 @@ class OptimizationConfig:
     distance_metric: Literal["correlation", "euclidean", "angular"] = "correlation"
 
     # Solver
-    solver: Literal["ECOS", "OSQP", "SCS", "CLARABEL"] = "ECOS"
+    solver: Literal["ECOS", "OSQP", "SCS", "CLARABEL"] = "SCS"
     verbose: bool = False
 
 
@@ -288,8 +288,13 @@ class HierarchicalRiskParity(BaseOptimizer):
 
     def _cov_to_corr(self, cov: np.ndarray) -> np.ndarray:
         """Convert covariance to correlation matrix."""
+        cov = np.nan_to_num(cov, nan=0.0)
         d = np.sqrt(np.diag(cov))
-        return cov / np.outer(d, d)
+        d = np.where(d == 0, 1e-10, d)
+        corr = cov / np.outer(d, d)
+        corr = np.nan_to_num(corr, nan=0.0)
+        np.fill_diagonal(corr, 1.0)
+        return corr
 
     def _build_linkage(self, corr: np.ndarray) -> np.ndarray:
         """Build hierarchical clustering linkage matrix."""
@@ -300,6 +305,8 @@ class HierarchicalRiskParity(BaseOptimizer):
             dist = np.arccos(np.clip(corr, -1, 1)) / np.pi
         else:  # euclidean
             dist = np.sqrt(np.sum((corr[:, np.newaxis] - corr[np.newaxis, :]) ** 2, axis=2))
+
+        dist = np.nan_to_num(dist, nan=0.0)
 
         # Hierarchical clustering
         linkage = cluster.hierarchy.linkage(dist, method=self.config.linkage_method)
