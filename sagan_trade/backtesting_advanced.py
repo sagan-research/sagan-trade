@@ -57,7 +57,8 @@ class BacktestConfig:
     embargo_pct: float = 0.01  # Embargo percentage
 
     # CPCV parameters
-    n_combinations: int = 10  # Number of combinations to test
+    n_combinations: int = 10  # Maximum CPCV paths to evaluate
+    cpcv_test_folds: int = 2  # Number of groups held out per CPCV path
 
     # Monte Carlo parameters
     n_simulations: int = 1000
@@ -73,6 +74,7 @@ class BacktestConfig:
 
     # Parallel processing
     n_jobs: int = -1  # Use all cores
+    random_state: int = 42  # Reproducible Monte Carlo sampling
 
 
 @dataclass
@@ -540,7 +542,7 @@ class CombinatorialPurgedCVBacktester(BaseBacktester):
             return
 
         n_base = len(base_splits)
-        n_test_folds = cfg.n_splits
+        n_test_folds = min(cfg.cpcv_test_folds, max(1, n_base - 1))
 
         # Generate combinations of test folds
         for combo in itertools.combinations(range(n_base), n_test_folds):
@@ -628,13 +630,14 @@ class MonteCarloBacktester(BaseBacktester):
         cfg = self.config
         returns = prices.pct_change().dropna()
 
-        # Fit strategy on full data to get base positions
+        # Fit once. Monte Carlo is a robustness test of realized strategy returns,
+        # not a second backtest on synthetic prices with stale signals.
         base_positions = strategy(prices, signals, prices, signals, **kwargs)
+        base_portfolio_returns = self._compute_portfolio_returns(returns, base_positions)
 
-        # Block bootstrap simulations
         results = Parallel(n_jobs=cfg.n_jobs)(
             delayed(self._run_simulation)(
-                sim_id, returns, base_positions, strategy, signals, prices, kwargs
+                sim_id, base_portfolio_returns, base_positions
             )
             for sim_id in range(cfg.n_simulations)
         )
@@ -644,47 +647,40 @@ class MonteCarloBacktester(BaseBacktester):
     def _run_simulation(
         self,
         sim_id: int,
-        returns: pd.DataFrame,
-        base_positions: pd.DataFrame,
-        strategy: Callable,
-        signals: pd.DataFrame,
-        prices: pd.DataFrame,
-        kwargs: dict,
+        base_returns: pd.Series,
+        positions: pd.DataFrame,
     ) -> BacktestResult:
-        """Run single Monte Carlo simulation."""
+        """Bootstrap the realized strategy return stream in contiguous blocks."""
         cfg = self.config
-        n = len(returns)
+        n = len(base_returns)
+        if n == 0:
+            raise ValueError("Monte Carlo requires at least one realized portfolio return.")
 
-        # Block bootstrap
-        block_size = cfg.block_size
+        rng = np.random.default_rng(cfg.random_state + sim_id)
+        block_size = min(max(1, cfg.block_size), n)
         n_blocks = int(np.ceil(n / block_size))
+        max_start = max(0, n - block_size)
+        starts = rng.integers(0, max_start + 1, size=n_blocks)
 
-        # Sample blocks with replacement
-        block_starts = np.random.randint(0, n - block_size + 1, n_blocks)
-        sim_returns = []
-        for start in block_starts:
-            end = min(start + block_size, n)
-            sim_returns.append(returns.iloc[start:end])
-        sim_returns = pd.concat(sim_returns).iloc[:n]
-        sim_returns.index = returns.index
+        blocks = [base_returns.iloc[start : start + block_size] for start in starts]
+        sim_returns = pd.concat(blocks, ignore_index=True).iloc[:n]
+        sim_returns.index = base_returns.index
 
-        # Simulate prices from returns
-        sim_prices = (1 + sim_returns).cumprod() * prices.iloc[0]
-
-        # Evaluate strategy on simulated data
-        positions = strategy(prices, signals, sim_prices, signals, **kwargs)
-        sim_portfolio_returns = self._compute_portfolio_returns(sim_returns, positions)
-
-        # Metrics
         result = BacktestResult(
             fold_id=sim_id,
-            train_start=returns.index[0],
-            train_end=returns.index[-1],
-            test_start=returns.index[0],
-            test_end=returns.index[-1],
+            train_start=base_returns.index[0],
+            train_end=base_returns.index[-1],
+            test_start=base_returns.index[0],
+            test_end=base_returns.index[-1],
+            positions=positions,
+            metadata={
+                "simulation": "stationary_block_bootstrap",
+                "block_size": block_size,
+                "random_state": cfg.random_state + sim_id,
+                "source": "realized_strategy_returns",
+            },
         )
-
-        self._compute_metrics(result, sim_portfolio_returns)
+        self._compute_metrics(result, sim_returns)
         return result
 
     def _compute_portfolio_returns(
@@ -696,13 +692,9 @@ class MonteCarloBacktester(BaseBacktester):
         positions = positions.loc[common_idx].shift(1)
 
         port_returns = (returns * positions).sum(axis=1)
-
-        # Costs
         turnover = positions.diff().abs().sum(axis=1)
         costs = turnover * (self.config.commission + self.config.slippage)
-
         return port_returns - costs
-
 
 # Utility functions
 def compute_performance_metrics(

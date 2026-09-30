@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import yfinance as yf
 from scipy.optimize import minimize
 
 
@@ -36,8 +35,8 @@ class SymbolicRegressor:
             "Momentum_Volume_Signal": {
                 "func": lambda df, p: (
                     p[0]
-                    * (df["Close"] - df["Close"].shift(10).bfill())
-                    * np.log(df["Volume"] + 1e-4)
+                    * (df["Close"] - df["Close"].shift(10))
+                    * np.log(df["Volume"].clip(lower=1e-4))
                 ),
                 "num_params": 1,
                 "latex": "c_1 \\cdot \\Delta_{10} P_t \\cdot \\ln(V_t)",
@@ -60,7 +59,7 @@ class SymbolicRegressor:
         rs = gain / (loss + 1e-8)
         return 100 - (100 / (1 + rs))
 
-    def train(self, target, signals, data=None):
+    def train(self, target, signals, data=None, validation_fraction=0.2, random_state=42):
         """
         Fits candidate symbolic formulas to target return dynamics.
         target: ticker symbol string or target pandas Series
@@ -68,10 +67,19 @@ class SymbolicRegressor:
         data: optional pandas DataFrame containing target and signals
         """
         self.target = target
-        self.signals = signals
+        self.signals = list(signals or [])
+        if not 0.0 <= validation_fraction < 0.5:
+            raise ValueError("validation_fraction must be in [0, 0.5)")
+        _ = random_state  # reserved for future stochastic search backends
 
         if data is None:
             if isinstance(target, str):
+                try:
+                    import yfinance as yf
+                except ImportError as exc:
+                    raise ImportError(
+                        "yfinance is required for ticker-based training; pass data=... for local research."
+                    ) from exc
                 print(f"Downloading historical data for target '{target}' via yfinance...")
                 df = yf.download(target, period="2y", progress=False)
                 # Flatten multi-index columns if present
@@ -94,11 +102,9 @@ class SymbolicRegressor:
             else:
                 self.data["RSI"] = 50.0
 
-        # Define targets: next-day returns
-        if "Close" in self.data.columns:
-            y = self.data["Close"].pct_change().shift(-1).fillna(0.0).values
-        else:
-            y = self.data.iloc[:, 0].pct_change().shift(-1).fillna(0.0).values
+        # Strictly forward target. The final unknown return is NaN, never a synthetic zero.
+        price = self.data["Close"] if "Close" in self.data.columns else self.data.iloc[:, 0]
+        y_series = price.pct_change().shift(-1).replace([np.inf, -np.inf], np.nan)
 
         # Select compatible formulas based on available columns
         compatible_formulas = {}
@@ -121,7 +127,7 @@ class SymbolicRegressor:
             self.data["RSI"] = self.data.get("RSI", pd.Series(50.0, index=self.data.index))
             compatible_formulas["Poly_Signal"] = self.formulas["Poly_Signal"]
 
-        best_mse = float("inf")
+        best_validation_mse = float("inf")
         best_name = None
         best_params = None
 
@@ -129,24 +135,49 @@ class SymbolicRegressor:
             func = entry["func"]
             num_params = entry["num_params"]
 
+            probe = pd.Series(entry["func"](self.data, np.zeros(num_params)), index=self.data.index)
+            valid_index = y_series.index[
+                y_series.notna() & probe.replace([np.inf, -np.inf], np.nan).notna()
+            ]
+            if len(valid_index) < max(30, num_params + 5):
+                continue
+
+            split = int(len(valid_index) * (1.0 - validation_fraction))
+            split = min(max(split, num_params + 5), len(valid_index))
+            train_index = valid_index[:split]
+            validation_index = valid_index[split:] if split < len(valid_index) else train_index
+
+            train_frame = self.data.loc[train_index]
+            train_y = y_series.loc[train_index].to_numpy(dtype=float)
+            validation_frame = self.data.loc[validation_index]
+            validation_y = y_series.loc[validation_index].to_numpy(dtype=float)
+
             def loss_func(params, _func=func):
-                pred = _func(self.data, params)
-                # MSE of prediction vs. next-day return
-                return np.mean((y - pred) ** 2)
+                pred = np.asarray(_func(train_frame, params), dtype=float)
+                pred = np.nan_to_num(pred, nan=0.0, posinf=0.0, neginf=0.0)
+                return float(np.mean((train_y - pred) ** 2))
 
-            x0 = np.zeros(num_params)
-            res = minimize(loss_func, x0, method="Nelder-Mead")
+            res = minimize(
+                loss_func, np.zeros(num_params, dtype=float), method="Nelder-Mead",
+                options={"maxiter": 5000}
+            )
+            validation_pred = np.asarray(func(validation_frame, res.x), dtype=float)
+            finite = np.isfinite(validation_pred) & np.isfinite(validation_y)
+            if not finite.any():
+                continue
+            validation_mse = float(np.mean((validation_y[finite] - validation_pred[finite]) ** 2))
 
-            final_pred = func(self.data, res.x)
-            final_mse = np.mean((y - final_pred) ** 2)
-
-            if final_mse < best_mse:
-                best_mse = final_mse
+            if validation_mse < best_validation_mse:
+                best_validation_mse = validation_mse
                 best_name = name
                 best_params = res.x
 
+        if best_name is None or best_params is None:
+            raise RuntimeError("Symbolic search failed to produce a finite validation score.")
+
         self.best_formula_name = best_name
         self.fitted_params = best_params
+        self.validation_mse = best_validation_mse
 
         print(f"Discovered Symbolic Strategy: {self.best_formula_name}")
         print(f"Formula Equation (LaTeX): {self.formulas[self.best_formula_name]['latex']}")
@@ -166,6 +197,9 @@ class SymbolicRegressor:
                 df["RSI"] = self._compute_rsi(df["Close"]).fillna(50)
             else:
                 df["RSI"] = 50.0
+
+        if self.best_formula_name is None or self.fitted_params is None:
+            raise ValueError("Model is not fitted. Run train() first.")
 
         entry = self.formulas[self.best_formula_name]
         func = entry["func"]

@@ -1,0 +1,14 @@
+# Keep the source distribution focused on the library.
+recursive-include sagan *.py *.typed
+recursive-include sagan_trade *.py *.typed
+include README.md LICENSE
+exclude WQB_Submission/*
+prune generated
+prune dashboard
+prune benchmark
+prune notebooks
+global-exclude *.exe
+global-exclude *.dll
+global-exclude *.so
+global-exclude *.dylib
+global-exclude credentials.json
